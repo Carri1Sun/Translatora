@@ -10,6 +10,8 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
     private let selectedTextReader: SelectedTextReader
     private var phaseCancellable: AnyCancellable?
     private var appearanceCancellable: AnyCancellable?
+    private var selectionReadTask: Task<Void, Never>?
+    private var selectionReadGeneration = 0
 
     init(
         translationService: TranslationService,
@@ -44,25 +46,41 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
     func toggle() {
         if panel.isVisible {
             close()
+        } else if selectionReadTask != nil {
+            selectionReadGeneration += 1
+            selectionReadTask?.cancel()
+            selectionReadTask = nil
         } else {
             show()
         }
     }
 
     func show() {
-        let selectedText = selectedTextReader.readSelectedText(promptIfNeeded: true)
-        viewModel.prepare(selectedText: selectedText)
-        resize(for: .idle, animated: false)
-        panel.center()
-        panel.makeKeyAndOrderFront(nil)
+        guard selectionReadTask == nil else { return }
+        selectionReadGeneration += 1
+        let generation = selectionReadGeneration
 
-        Task { [weak self] in
+        selectionReadTask = Task { [weak self] in
+            guard let self else { return }
+            let selectedText = await selectedTextReader.readSelectedText(promptIfNeeded: true)
+            guard !Task.isCancelled,
+                  selectionReadGeneration == generation else { return }
+
+            selectionReadTask = nil
+            viewModel.prepare(selectedText: selectedText)
+            resize(for: .idle, animated: false)
+            panel.center()
+            panel.makeKeyAndOrderFront(nil)
+
             await Task.yield()
-            self?.viewModel.translateAutomaticallyIfNeeded()
+            viewModel.translateAutomaticallyIfNeeded()
         }
     }
 
     func close() {
+        selectionReadGeneration += 1
+        selectionReadTask?.cancel()
+        selectionReadTask = nil
         panel.orderOut(nil)
         viewModel.reset()
     }

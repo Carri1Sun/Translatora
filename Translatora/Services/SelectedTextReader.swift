@@ -1,8 +1,12 @@
 import AppKit
 import ApplicationServices
+import Carbon.HIToolbox
 
 @MainActor
 final class SelectedTextReader {
+    private let copyTimeoutNanoseconds: UInt64 = 350_000_000
+    private let pollIntervalNanoseconds: UInt64 = 10_000_000
+
     var isAccessibilityTrusted: Bool {
         AXIsProcessTrusted()
     }
@@ -15,7 +19,7 @@ final class SelectedTextReader {
         return AXIsProcessTrustedWithOptions(options)
     }
 
-    func readSelectedText(promptIfNeeded: Bool = true) -> String? {
+    func readSelectedText(promptIfNeeded: Bool = true) async -> String? {
         let trusted = promptIfNeeded
             ? requestAccessibilityAccess()
             : isAccessibilityTrusted
@@ -26,30 +30,37 @@ final class SelectedTextReader {
             return nil
         }
 
-        let applicationElement = AXUIElementCreateApplication(frontmostApplication.processIdentifier)
-        var focusedValue: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(
-            applicationElement,
-            kAXFocusedUIElementAttribute as CFString,
-            &focusedValue
-        ) == .success,
-        let focusedValue else {
+        let pasteboard = NSPasteboard.general
+        let snapshot = PasteboardSnapshot(pasteboard: pasteboard)
+        let probeType = NSPasteboard.PasteboardType(
+            "com.kaiyisun.translatora.selection-probe"
+        )
+        let probe = UUID().uuidString
+
+        pasteboard.clearContents()
+        pasteboard.setString(probe, forType: probeType)
+        let probeChangeCount = pasteboard.changeCount
+
+        guard postCopyShortcut(to: frontmostApplication.processIdentifier) else {
+            snapshot.restore(to: pasteboard)
             return nil
         }
 
-        let focusedElement = focusedValue as! AXUIElement
-        var selectedValue: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(
-            focusedElement,
-            kAXSelectedTextAttribute as CFString,
-            &selectedValue
-        ) == .success,
-        let selectedText = selectedValue as? String else {
+        guard let copiedChangeCount = await waitForPasteboardChange(
+            pasteboard,
+            after: probeChangeCount
+        ) else {
+            snapshot.restore(to: pasteboard)
             return nil
         }
 
-        let normalized = selectedText.trimmingCharacters(in: .whitespacesAndNewlines)
-        return normalized.isEmpty ? nil : normalized
+        let selectedText = pasteboard.string(forType: .string)
+        if pasteboard.changeCount == copiedChangeCount {
+            snapshot.restore(to: pasteboard)
+        }
+
+        let normalized = selectedText?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return normalized?.isEmpty == false ? normalized : nil
     }
 
     func openAccessibilitySettings() {
@@ -57,5 +68,72 @@ final class SelectedTextReader {
             string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
         ) else { return }
         NSWorkspace.shared.open(url)
+    }
+
+    private func postCopyShortcut(to processIdentifier: pid_t) -> Bool {
+        guard let source = CGEventSource(stateID: .hidSystemState),
+              let keyDown = CGEvent(
+                  keyboardEventSource: source,
+                  virtualKey: CGKeyCode(kVK_ANSI_C),
+                  keyDown: true
+              ),
+              let keyUp = CGEvent(
+                  keyboardEventSource: source,
+                  virtualKey: CGKeyCode(kVK_ANSI_C),
+                  keyDown: false
+              ) else {
+            return false
+        }
+
+        keyDown.flags = .maskCommand
+        keyUp.flags = .maskCommand
+        keyDown.postToPid(processIdentifier)
+        keyUp.postToPid(processIdentifier)
+        return true
+    }
+
+    private func waitForPasteboardChange(
+        _ pasteboard: NSPasteboard,
+        after initialChangeCount: Int
+    ) async -> Int? {
+        let deadline = DispatchTime.now().uptimeNanoseconds + copyTimeoutNanoseconds
+
+        while DispatchTime.now().uptimeNanoseconds < deadline {
+            guard !Task.isCancelled else { return nil }
+            if pasteboard.changeCount != initialChangeCount {
+                return pasteboard.changeCount
+            }
+            try? await Task.sleep(nanoseconds: pollIntervalNanoseconds)
+        }
+
+        return pasteboard.changeCount != initialChangeCount
+            ? pasteboard.changeCount
+            : nil
+    }
+}
+
+struct PasteboardSnapshot {
+    private let items: [[NSPasteboard.PasteboardType: Data]]
+
+    init(pasteboard: NSPasteboard) {
+        items = pasteboard.pasteboardItems?.map { item in
+            Dictionary(uniqueKeysWithValues: item.types.compactMap { type in
+                item.data(forType: type).map { (type, $0) }
+            })
+        } ?? []
+    }
+
+    func restore(to pasteboard: NSPasteboard) {
+        pasteboard.clearContents()
+        guard !items.isEmpty else { return }
+
+        let pasteboardItems = items.map { representations in
+            let item = NSPasteboardItem()
+            for (type, data) in representations {
+                item.setData(data, forType: type)
+            }
+            return item
+        }
+        pasteboard.writeObjects(pasteboardItems)
     }
 }
