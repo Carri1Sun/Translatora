@@ -7,12 +7,16 @@
 
 import SwiftUI
 
+private enum AppWindowID {
+    static let main = "main"
+}
+
 @main
 struct TranslatoraApp: App {
     @StateObject private var dependencies = AppDependencies()
 
     var body: some Scene {
-        WindowGroup {
+        Window("Translatora", id: AppWindowID.main) {
             ContentView()
                 .environmentObject(dependencies)
                 .preferredColorScheme(dependencies.appearanceStore.appearance.colorScheme)
@@ -22,25 +26,28 @@ struct TranslatoraApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 980, height: 720)
+        .commands {
+            TranslatoraCommands(dependencies: dependencies)
+        }
+    }
+}
 
-        Settings {
-            DeepSeekSettingsView(
-                configurationStore: dependencies.configurationStore,
-                modelProvider: dependencies.modelProvider,
-                appearanceStore: dependencies.appearanceStore,
-                shortcutStore: dependencies.shortcutStore,
-                shortcutErrorMessage: dependencies.shortcutErrorMessage,
-                updateShortcut: dependencies.updateGlobalShortcut,
-                selectedTextReader: dependencies.selectedTextReader
-            )
-            .preferredColorScheme(dependencies.appearanceStore.appearance.colorScheme)
+private struct TranslatoraCommands: Commands {
+    @Environment(\.openWindow) private var openWindow
+    @ObservedObject var dependencies: AppDependencies
+
+    var body: some Commands {
+        CommandGroup(replacing: .appSettings) {
+            Button("设置…") {
+                dependencies.presentSettings()
+                openWindow(id: AppWindowID.main)
+            }
+            .keyboardShortcut(",", modifiers: .command)
         }
 
-        .commands {
-            CommandMenu("翻译") {
-                Button("翻译浮窗（\(dependencies.shortcutStore.shortcut.displayName)）") {
-                    dependencies.toggleTranslationPanel()
-                }
+        CommandMenu("翻译") {
+            Button("翻译浮窗（\(dependencies.shortcutStore.shortcut.displayName)）") {
+                dependencies.toggleTranslationPanel()
             }
         }
     }

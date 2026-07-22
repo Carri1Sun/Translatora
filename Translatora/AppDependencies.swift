@@ -12,6 +12,7 @@ final class AppDependencies: ObservableObject {
     let translationService: TranslationService
 
     @Published private(set) var shortcutErrorMessage: String?
+    @Published private(set) var isSettingsPresented = false
 
     private var translationPanelController: TranslationPanelController?
     private var globalHotKeyMonitor: GlobalHotKeyMonitor?
@@ -76,6 +77,14 @@ final class AppDependencies: ObservableObject {
             start()
         }
         translationPanelController?.toggle()
+    }
+
+    func presentSettings() {
+        isSettingsPresented = true
+    }
+
+    func dismissSettings() {
+        isSettingsPresented = false
     }
 
     @discardableResult

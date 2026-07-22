@@ -13,6 +13,7 @@ struct ContentView: View {
 }
 
 struct DictionaryHomeView: View {
+    @EnvironmentObject private var dependencies: AppDependencies
     @ObservedObject var dictionaryStore: DictionaryStore
     @ObservedObject var shortcutStore: ShortcutStore
     let shortcutErrorMessage: String?
@@ -35,9 +36,16 @@ struct DictionaryHomeView: View {
             }
 
             detailOverlay
+            settingsOverlay
         }
         .frame(minWidth: 720, minHeight: 520)
-        .animation(.easeInOut(duration: 0.14), value: selectedEntryID != nil)
+        .animation(.easeInOut(duration: 0.16), value: selectedEntryID != nil)
+        .animation(.easeInOut(duration: 0.16), value: dependencies.isSettingsPresented)
+        .onChange(of: dependencies.isSettingsPresented) { _, isPresented in
+            if isPresented {
+                selectedEntryID = nil
+            }
+        }
         .alert(
             "无法完成操作",
             isPresented: Binding(
@@ -78,7 +86,7 @@ struct DictionaryHomeView: View {
                     .help(shortcutErrorMessage)
             }
 
-            SettingsLink {
+            Button(action: showSettings) {
                 Image(systemName: "gearshape")
                     .frame(width: 22, height: 22)
             }
@@ -207,9 +215,9 @@ struct DictionaryHomeView: View {
 
     @ViewBuilder
     private var detailOverlay: some View {
-        if let entry = selectedEntry,
-           let index = orderedEntries.firstIndex(where: { $0.id == entry.id }) {
-            ZStack {
+        ZStack {
+            if let entry = selectedEntry,
+               let index = orderedEntries.firstIndex(where: { $0.id == entry.id }) {
                 Color.black.opacity(0.16)
                     .ignoresSafeArea()
                     .contentShape(.rect)
@@ -217,6 +225,7 @@ struct DictionaryHomeView: View {
                         selectedEntryID = nil
                     }
                     .accessibilityHidden(true)
+                    .transition(.opacity)
 
                 DictionaryEntryDetailView(
                     entry: entry,
@@ -233,11 +242,42 @@ struct DictionaryHomeView: View {
                 .id(entry.id)
                 .clipShape(.rect(cornerRadius: 22))
                 .shadow(color: .black.opacity(0.22), radius: 20, y: 8)
-                .transition(.scale(scale: 0.97).combined(with: .opacity))
+                .transition(.offset(y: 18).combined(with: .opacity))
             }
-            .zIndex(1)
-            .transition(.opacity)
         }
+        .zIndex(1)
+    }
+
+    @ViewBuilder
+    private var settingsOverlay: some View {
+        ZStack {
+            if dependencies.isSettingsPresented {
+                Color.black.opacity(0.16)
+                    .ignoresSafeArea()
+                    .contentShape(.rect)
+                    .onTapGesture(perform: dependencies.dismissSettings)
+                    .accessibilityHidden(true)
+                    .transition(.opacity)
+
+                SettingsCardView(
+                    configurationStore: dependencies.configurationStore,
+                    modelProvider: dependencies.modelProvider,
+                    appearanceStore: dependencies.appearanceStore,
+                    shortcutStore: dependencies.shortcutStore,
+                    shortcutErrorMessage: dependencies.shortcutErrorMessage,
+                    updateShortcut: dependencies.updateGlobalShortcut,
+                    selectedTextReader: dependencies.selectedTextReader,
+                    onClose: dependencies.dismissSettings
+                )
+                .frame(width: 600)
+                .frame(maxHeight: 620)
+                .clipShape(.rect(cornerRadius: 22))
+                .shadow(color: .black.opacity(0.22), radius: 20, y: 8)
+                .padding(24)
+                .transition(.offset(y: 18).combined(with: .opacity))
+            }
+        }
+        .zIndex(2)
     }
 
     private func sectionTitle(for date: Date) -> String {
@@ -245,6 +285,11 @@ struct DictionaryHomeView: View {
         if calendar.isDateInToday(date) { return "今天" }
         if calendar.isDateInYesterday(date) { return "昨天" }
         return date.formatted(date: .long, time: .omitted)
+    }
+
+    private func showSettings() {
+        selectedEntryID = nil
+        dependencies.presentSettings()
     }
 
     private func moveSelection(by offset: Int) {

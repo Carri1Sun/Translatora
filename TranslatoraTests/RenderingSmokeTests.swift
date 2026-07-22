@@ -46,6 +46,7 @@ struct RenderingSmokeTests {
             ),
             shortcutErrorMessage: nil
         )
+            .environmentObject(AppDependencies())
             .preferredColorScheme(.light)
             .frame(width: 980, height: 720)
 
@@ -92,6 +93,32 @@ struct RenderingSmokeTests {
         let pngData = try render(view, size: NSSize(width: 680, height: 660))
         #expect(pngData.count > 10_000)
         try pngData.write(to: URL(filePath: "/tmp/translatora-detail-render.png"), options: .atomic)
+    }
+
+    @Test
+    func rendersSettingsCard() throws {
+        let suiteName = "TranslatoraRender.Settings.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        let configurationStore = ConfigurationStore(defaults: defaults)
+
+        let view = SettingsCardView(
+            configurationStore: configurationStore,
+            modelProvider: ModelProvider(configurationStore: configurationStore),
+            appearanceStore: AppearanceStore(defaults: defaults),
+            shortcutStore: ShortcutStore(defaults: defaults),
+            shortcutErrorMessage: nil,
+            updateShortcut: { _ in true },
+            selectedTextReader: SelectedTextReader(),
+            onClose: {}
+        )
+        .preferredColorScheme(.light)
+        .frame(width: 600, height: 620)
+        .clipShape(.rect(cornerRadius: 22))
+        .background(Color.white)
+
+        let pngData = try render(view, size: NSSize(width: 600, height: 620))
+        #expect(pngData.count > 10_000)
+        try pngData.write(to: URL(filePath: "/tmp/translatora-settings-render.png"), options: .atomic)
     }
 
     @Test

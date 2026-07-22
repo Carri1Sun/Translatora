@@ -135,7 +135,7 @@ struct DeepSeekSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 540)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .preferredColorScheme(appearanceStore.appearance.colorScheme)
         .onAppear {
             loadSavedConfiguration()
@@ -249,4 +249,5 @@ struct DeepSeekSettingsView: View {
         updateShortcut: { _ in true },
         selectedTextReader: SelectedTextReader()
     )
+    .frame(width: 540, height: 560)
 }
