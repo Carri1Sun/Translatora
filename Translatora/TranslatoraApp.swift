@@ -9,9 +9,19 @@ import SwiftUI
 
 @main
 struct TranslatoraApp: App {
+    @StateObject private var dependencies = AppDependencies()
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(dependencies)
+        }
+
+        Settings {
+            DeepSeekSettingsView(
+                configurationStore: dependencies.configurationStore,
+                modelProvider: dependencies.modelProvider
+            )
         }
     }
 }
