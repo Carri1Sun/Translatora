@@ -6,6 +6,7 @@ import SwiftUI
 final class TranslationPanelController: NSObject, NSWindowDelegate {
     private let panel: TranslationPanel
     private let viewModel: TranslationPanelViewModel
+    private let shortcutStore: ShortcutStore
     private let selectedTextReader: SelectedTextReader
     private var phaseCancellable: AnyCancellable?
     private var appearanceCancellable: AnyCancellable?
@@ -14,16 +15,18 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
         translationService: TranslationService,
         dictionaryStore: DictionaryStore,
         appearanceStore: AppearanceStore,
+        shortcutStore: ShortcutStore,
         selectedTextReader: SelectedTextReader
     ) {
         viewModel = TranslationPanelViewModel(
             translationService: translationService,
             dictionaryStore: dictionaryStore
         )
+        self.shortcutStore = shortcutStore
         self.selectedTextReader = selectedTextReader
         panel = TranslationPanel(
             contentRect: NSRect(x: 0, y: 0, width: 640, height: 350),
-            styleMask: [.titled, .closable, .fullSizeContentView],
+            styleMask: [.titled, .closable, .fullSizeContentView, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
@@ -51,7 +54,6 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
         viewModel.prepare(selectedText: selectedText)
         resize(for: .idle, animated: false)
         panel.center()
-        NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
 
         Task { [weak self] in
@@ -71,7 +73,7 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
 
     private func configurePanel(appearanceStore: AppearanceStore) {
         panel.delegate = self
-        panel.title = "快速翻译"
+        panel.title = "翻译浮窗"
         panel.titleVisibility = .hidden
         panel.titlebarAppearsTransparent = true
         panel.isOpaque = false
@@ -79,6 +81,8 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
         panel.hasShadow = true
         panel.isReleasedWhenClosed = false
         panel.isMovableByWindowBackground = true
+        panel.hidesOnDeactivate = false
+        panel.becomesKeyOnlyIfNeeded = false
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
         panel.minSize = NSSize(width: 640, height: 350)
@@ -87,6 +91,7 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
         let rootView = TranslationPanelView(
             viewModel: viewModel,
             appearanceStore: appearanceStore,
+            shortcutStore: shortcutStore,
             onClose: { [weak self] in self?.close() }
         )
         panel.contentViewController = NSHostingController(rootView: rootView)

@@ -36,8 +36,10 @@ struct RenderingSmokeTests {
 
         let view = DictionaryHomeView(
             dictionaryStore: dictionaryStore,
-            shortcutErrorMessage: nil,
-            openTranslator: {}
+            shortcutStore: ShortcutStore(
+                defaults: UserDefaults(suiteName: "TranslatoraRender.Shortcut.Main")!
+            ),
+            shortcutErrorMessage: nil
         )
             .preferredColorScheme(.light)
             .frame(width: 980, height: 720)
@@ -72,6 +74,9 @@ struct RenderingSmokeTests {
         let view = TranslationPanelView(
             viewModel: viewModel,
             appearanceStore: appearanceStore,
+            shortcutStore: ShortcutStore(
+                defaults: UserDefaults(suiteName: "TranslatoraRender.Shortcut.Panel")!
+            ),
             onClose: {}
         )
         .environment(\.colorScheme, .dark)

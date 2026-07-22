@@ -12,12 +12,16 @@ struct DeepSeekSettingsView: View {
     @ObservedObject var configurationStore: ConfigurationStore
     let modelProvider: ModelProvider
     @ObservedObject var appearanceStore: AppearanceStore
+    @ObservedObject var shortcutStore: ShortcutStore
+    let shortcutErrorMessage: String?
+    let updateShortcut: (GlobalShortcut) -> Bool
     let selectedTextReader: SelectedTextReader
 
     @State private var apiKey = ""
     @State private var selectedModel = DeepSeekModel.v4Flash
     @State private var feedback = Feedback.none
     @State private var isAccessibilityTrusted = false
+    @State private var shortcutValidationError: String?
 
     var body: some View {
         Form {
@@ -33,6 +37,38 @@ struct DeepSeekSettingsView: View {
                 Text("翻译面板和词典会同步使用所选外观。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+
+            Section("翻译浮窗快捷键") {
+                HStack(spacing: 12) {
+                    Text("全局快捷键")
+
+                    Spacer()
+
+                    ShortcutRecorderView(
+                        shortcut: shortcutStore.shortcut,
+                        onChange: applyShortcut,
+                        onValidationError: { message in
+                            shortcutValidationError = message
+                        }
+                    )
+                    .frame(width: 190)
+
+                    Button("恢复默认") {
+                        applyShortcut(.default)
+                    }
+                    .disabled(shortcutStore.shortcut == .default)
+                }
+
+                Text("点击快捷键后直接按下新的组合；组合中至少需要一个修饰键。按 Esc 可取消录制。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                if let message = shortcutValidationError ?? shortcutErrorMessage {
+                    Label(message, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
             }
 
             Section("DeepSeek API") {
@@ -93,7 +129,7 @@ struct DeepSeekSettingsView: View {
                     }
                 }
 
-                Text("用于在按下 ⌘⇧T 时读取其他应用当前选中的文本；权限缺失不会影响手动输入翻译。")
+                Text("用于在按下 \(shortcutStore.shortcut.displayName) 时读取其他应用当前选中的文本；权限缺失不会影响手动输入翻译。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -195,6 +231,11 @@ struct DeepSeekSettingsView: View {
     private func refreshAccessibilityStatus() {
         isAccessibilityTrusted = selectedTextReader.isAccessibilityTrusted
     }
+
+    private func applyShortcut(_ shortcut: GlobalShortcut) {
+        shortcutValidationError = nil
+        _ = updateShortcut(shortcut)
+    }
 }
 
 #Preview {
@@ -203,6 +244,9 @@ struct DeepSeekSettingsView: View {
         configurationStore: store,
         modelProvider: ModelProvider(configurationStore: store),
         appearanceStore: AppearanceStore(),
+        shortcutStore: ShortcutStore(),
+        shortcutErrorMessage: nil,
+        updateShortcut: { _ in true },
         selectedTextReader: SelectedTextReader()
     )
 }

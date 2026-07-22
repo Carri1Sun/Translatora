@@ -3,6 +3,7 @@ import SwiftUI
 struct TranslationPanelView: View {
     @ObservedObject var viewModel: TranslationPanelViewModel
     @ObservedObject var appearanceStore: AppearanceStore
+    @ObservedObject var shortcutStore: ShortcutStore
     let onClose: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
@@ -50,7 +51,7 @@ struct TranslationPanelView: View {
             .frame(width: 34, height: 34)
 
             VStack(alignment: .leading, spacing: 1) {
-                Text("快速翻译")
+                Text("翻译浮窗")
                     .font(.headline)
                 Text("Translatora")
                     .font(.caption)
@@ -59,7 +60,7 @@ struct TranslationPanelView: View {
 
             Spacer()
 
-            Text("⌘ ⇧ T")
+            Text(shortcutStore.shortcut.spacedDisplayName)
                 .font(.caption.monospaced())
                 .foregroundStyle(mutedColor)
                 .padding(.horizontal, 10)
@@ -150,7 +151,7 @@ struct TranslationPanelView: View {
         case .idle:
             HStack(spacing: 6) {
                 Image(systemName: "selection.pin.in.out")
-                Text("选中文本后按 ⌘⇧T，可直接开始翻译")
+                Text("选中文本后按 \(shortcutStore.shortcut.displayName)，可直接开始翻译")
             }
             .font(.caption)
             .foregroundStyle(.tertiary)

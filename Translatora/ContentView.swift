@@ -6,16 +6,16 @@ struct ContentView: View {
     var body: some View {
         DictionaryHomeView(
             dictionaryStore: dependencies.dictionaryStore,
-            shortcutErrorMessage: dependencies.shortcutErrorMessage,
-            openTranslator: dependencies.toggleTranslationPanel
+            shortcutStore: dependencies.shortcutStore,
+            shortcutErrorMessage: dependencies.shortcutErrorMessage
         )
     }
 }
 
 struct DictionaryHomeView: View {
     @ObservedObject var dictionaryStore: DictionaryStore
+    @ObservedObject var shortcutStore: ShortcutStore
     let shortcutErrorMessage: String?
-    let openTranslator: () -> Void
 
     @State private var editingEntry: DictionaryEntry?
     @State private var entryPendingDeletion: DictionaryEntry?
@@ -98,14 +98,6 @@ struct DictionaryHomeView: View {
                     .help(shortcutErrorMessage)
             }
 
-            Button(action: openTranslator) {
-                Label("快速翻译", systemImage: "character.cursor.ibeam")
-                    .padding(.horizontal, 4)
-                    .foregroundStyle(AppTheme.ink)
-            }
-            .buttonStyle(.glass(.regular.tint(AppTheme.accent).interactive()))
-            .help("快速翻译 (⌘⇧T)")
-
             SettingsLink {
                 Image(systemName: "gearshape")
                     .frame(width: 22, height: 22)
@@ -157,14 +149,11 @@ struct DictionaryHomeView: View {
             VStack(spacing: 7) {
                 Text("词典还是空的")
                     .font(.title3.weight(.semibold))
-                Text("选中任意文本后按下 ⌘⇧T，翻译完成再决定是否收藏。")
+                Text("选中任意文本后按下 \(shortcutStore.shortcut.displayName)，翻译完成再决定是否收藏。")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
-
-            Button("开始翻译", action: openTranslator)
-                .buttonStyle(.glass(.regular.tint(AppTheme.accent).interactive()))
 
             if let loadErrorMessage = dictionaryStore.loadErrorMessage {
                 Label(loadErrorMessage, systemImage: "exclamationmark.triangle.fill")

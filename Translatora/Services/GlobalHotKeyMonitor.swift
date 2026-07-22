@@ -3,14 +3,14 @@ import Foundation
 
 enum GlobalHotKeyError: LocalizedError {
     case eventHandler(OSStatus)
-    case registration(OSStatus)
+    case registration(GlobalShortcut, OSStatus)
 
     var errorDescription: String? {
         switch self {
         case let .eventHandler(status):
             "无法监听全局快捷键（\(status)）"
-        case let .registration(status):
-            "⌘⇧T 可能已被其他应用占用（\(status)）"
+        case let .registration(shortcut, status):
+            "\(shortcut.displayName) 可能已被其他应用占用（\(status)）"
         }
     }
 }
@@ -23,8 +23,17 @@ final class GlobalHotKeyMonitor {
     private var eventHandler: EventHandlerRef?
     private var hotKey: EventHotKeyRef?
     private var action: (() -> Void)?
+    private var currentShortcut: GlobalShortcut?
+    private var nextIdentifier = GlobalHotKeyMonitor.identifier
 
-    func start(action: @escaping () -> Void) throws {
+    var isStarted: Bool {
+        eventHandler != nil
+    }
+
+    func start(
+        shortcut: GlobalShortcut,
+        action: @escaping () -> Void
+    ) throws {
         stop()
         self.action = action
 
@@ -55,23 +64,41 @@ final class GlobalHotKeyMonitor {
             throw GlobalHotKeyError.eventHandler(handlerStatus)
         }
 
+        do {
+            try updateShortcut(shortcut)
+        } catch {
+            stop()
+            throw error
+        }
+    }
+
+    func updateShortcut(_ shortcut: GlobalShortcut) throws {
+        guard currentShortcut != shortcut else { return }
+
         let hotKeyID = EventHotKeyID(
             signature: Self.signature,
-            id: Self.identifier
+            id: nextIdentifier
         )
+        var newHotKey: EventHotKeyRef?
         let registrationStatus = RegisterEventHotKey(
-            UInt32(kVK_ANSI_T),
-            UInt32(cmdKey | shiftKey),
+            shortcut.keyCode,
+            shortcut.modifiers.carbonFlags,
             hotKeyID,
             GetApplicationEventTarget(),
             0,
-            &hotKey
+            &newHotKey
         )
 
         guard registrationStatus == noErr else {
-            stop()
-            throw GlobalHotKeyError.registration(registrationStatus)
+            throw GlobalHotKeyError.registration(shortcut, registrationStatus)
         }
+
+        if let hotKey {
+            UnregisterEventHotKey(hotKey)
+        }
+        hotKey = newHotKey
+        currentShortcut = shortcut
+        nextIdentifier &+= 1
     }
 
     func stop() {
@@ -84,6 +111,8 @@ final class GlobalHotKeyMonitor {
             self.eventHandler = nil
         }
         action = nil
+        currentShortcut = nil
+        nextIdentifier = GlobalHotKeyMonitor.identifier
     }
 
     private func performAction() {

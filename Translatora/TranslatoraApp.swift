@@ -27,6 +27,9 @@ struct TranslatoraApp: App {
                 configurationStore: dependencies.configurationStore,
                 modelProvider: dependencies.modelProvider,
                 appearanceStore: dependencies.appearanceStore,
+                shortcutStore: dependencies.shortcutStore,
+                shortcutErrorMessage: dependencies.shortcutErrorMessage,
+                updateShortcut: dependencies.updateGlobalShortcut,
                 selectedTextReader: dependencies.selectedTextReader
             )
             .preferredColorScheme(dependencies.appearanceStore.appearance.colorScheme)
@@ -34,7 +37,7 @@ struct TranslatoraApp: App {
 
         .commands {
             CommandMenu("翻译") {
-                Button("快速翻译（⌘⇧T）") {
+                Button("翻译浮窗（\(dependencies.shortcutStore.shortcut.displayName)）") {
                     dependencies.toggleTranslationPanel()
                 }
             }
