@@ -11,13 +11,30 @@ struct DeepSeekSettingsView: View {
 
     @ObservedObject var configurationStore: ConfigurationStore
     let modelProvider: ModelProvider
+    @ObservedObject var appearanceStore: AppearanceStore
+    let selectedTextReader: SelectedTextReader
 
     @State private var apiKey = ""
     @State private var selectedModel = DeepSeekModel.v4Flash
     @State private var feedback = Feedback.none
+    @State private var isAccessibilityTrusted = false
 
     var body: some View {
         Form {
+            Section("外观") {
+                Picker("显示模式", selection: appearanceBinding) {
+                    ForEach(AppAppearance.allCases) { appearance in
+                        Label(appearance.displayName, systemImage: appearance.icon)
+                            .tag(appearance)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                Text("翻译面板和词典会同步使用所选外观。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Section("DeepSeek API") {
                 SecureField("API Key", text: $apiKey)
                     .textFieldStyle(.roundedBorder)
@@ -48,13 +65,46 @@ struct DeepSeekSettingsView: View {
                         save()
                     }
                     .buttonStyle(.borderedProminent)
+                    .tint(AppTheme.accentDeep)
                     .disabled(isTesting)
                 }
             }
+
+            Section("选中文本") {
+                HStack {
+                    Label(
+                        isAccessibilityTrusted ? "已获得辅助功能权限" : "需要辅助功能权限",
+                        systemImage: isAccessibilityTrusted
+                            ? "checkmark.shield.fill"
+                            : "lock.shield"
+                    )
+                    .foregroundStyle(isAccessibilityTrusted ? AppTheme.accentDeep : .secondary)
+
+                    Spacer()
+
+                    if !isAccessibilityTrusted {
+                        Button("请求权限") {
+                            requestAccessibilityAccess()
+                        }
+                    }
+
+                    Button("系统设置") {
+                        selectedTextReader.openAccessibilitySettings()
+                    }
+                }
+
+                Text("用于在按下 ⌘⇧T 时读取其他应用当前选中的文本；权限缺失不会影响手动输入翻译。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
-        .frame(width: 500)
-        .onAppear(perform: loadSavedConfiguration)
+        .frame(width: 540)
+        .preferredColorScheme(appearanceStore.appearance.colorScheme)
+        .onAppear {
+            loadSavedConfiguration()
+            refreshAccessibilityStatus()
+        }
         .onChange(of: apiKey) { _, _ in clearFeedbackAfterEditing() }
         .onChange(of: selectedModel) { _, _ in clearFeedbackAfterEditing() }
     }
@@ -86,6 +136,13 @@ struct DeepSeekSettingsView: View {
 
     private var normalizedAPIKey: String {
         apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var appearanceBinding: Binding<AppAppearance> {
+        Binding(
+            get: { appearanceStore.appearance },
+            set: appearanceStore.setAppearance
+        )
     }
 
     private var isTesting: Bool {
@@ -127,12 +184,25 @@ struct DeepSeekSettingsView: View {
         guard feedback != .testing else { return }
         feedback = .none
     }
+
+    private func requestAccessibilityAccess() {
+        isAccessibilityTrusted = selectedTextReader.requestAccessibilityAccess()
+        if !isAccessibilityTrusted {
+            selectedTextReader.openAccessibilitySettings()
+        }
+    }
+
+    private func refreshAccessibilityStatus() {
+        isAccessibilityTrusted = selectedTextReader.isAccessibilityTrusted
+    }
 }
 
 #Preview {
     let store = ConfigurationStore()
     DeepSeekSettingsView(
         configurationStore: store,
-        modelProvider: ModelProvider(configurationStore: store)
+        modelProvider: ModelProvider(configurationStore: store),
+        appearanceStore: AppearanceStore(),
+        selectedTextReader: SelectedTextReader()
     )
 }

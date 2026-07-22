@@ -15,13 +15,29 @@ struct TranslatoraApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(dependencies)
+                .preferredColorScheme(dependencies.appearanceStore.appearance.colorScheme)
+                .onAppear {
+                    dependencies.start()
+                }
         }
+        .defaultSize(width: 980, height: 720)
 
         Settings {
             DeepSeekSettingsView(
                 configurationStore: dependencies.configurationStore,
-                modelProvider: dependencies.modelProvider
+                modelProvider: dependencies.modelProvider,
+                appearanceStore: dependencies.appearanceStore,
+                selectedTextReader: dependencies.selectedTextReader
             )
+            .preferredColorScheme(dependencies.appearanceStore.appearance.colorScheme)
+        }
+
+        .commands {
+            CommandMenu("翻译") {
+                Button("快速翻译（⌘⇧T）") {
+                    dependencies.toggleTranslationPanel()
+                }
+            }
         }
     }
 }

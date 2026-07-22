@@ -1,7 +1,7 @@
 import Foundation
 
 @MainActor
-final class ModelProvider {
+final class ModelProvider: LLMCompleting {
     private let configurationStore: ConfigurationStore
 
     init(configurationStore: ConfigurationStore) {

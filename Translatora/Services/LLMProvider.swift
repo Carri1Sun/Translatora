@@ -59,3 +59,8 @@ protocol LLMProvider {
     func complete(_ request: LLMRequest) async throws -> LLMResponse
     func testConnection() async throws
 }
+
+@MainActor
+protocol LLMCompleting {
+    func complete(_ request: LLMRequest) async throws -> LLMResponse
+}
