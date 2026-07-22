@@ -17,8 +17,7 @@ struct DictionaryHomeView: View {
     @ObservedObject var shortcutStore: ShortcutStore
     let shortcutErrorMessage: String?
 
-    @State private var editingEntry: DictionaryEntry?
-    @State private var entryPendingDeletion: DictionaryEntry?
+    @State private var selectedEntryID: UUID?
     @State private var operationErrorMessage: String?
 
     var body: some View {
@@ -34,30 +33,11 @@ struct DictionaryHomeView: View {
                     dictionaryGrid
                 }
             }
+
+            detailOverlay
         }
         .frame(minWidth: 720, minHeight: 520)
-        .sheet(item: $editingEntry) { entry in
-            DictionaryEntryEditorView(entry: entry) { updatedEntry in
-                update(updatedEntry)
-            }
-        }
-        .confirmationDialog(
-            "删除这条词典记录？",
-            isPresented: Binding(
-                get: { entryPendingDeletion != nil },
-                set: { if !$0 { entryPendingDeletion = nil } }
-            ),
-            titleVisibility: .visible
-        ) {
-            Button("删除", role: .destructive) {
-                deletePendingEntry()
-            }
-            Button("取消", role: .cancel) {
-                entryPendingDeletion = nil
-            }
-        } message: {
-            Text("此操作无法撤销，但不会影响其他词典记录。")
-        }
+        .animation(.easeInOut(duration: 0.14), value: selectedEntryID != nil)
         .alert(
             "无法完成操作",
             isPresented: Binding(
@@ -101,11 +81,12 @@ struct DictionaryHomeView: View {
             SettingsLink {
                 Image(systemName: "gearshape")
                     .frame(width: 22, height: 22)
-                    .foregroundStyle(.primary)
-                    .padding(7)
-                    .glassEffect(.regular.interactive(), in: .circle)
             }
             .buttonStyle(.plain)
+            .foregroundStyle(.primary)
+            .frame(width: 36, height: 36)
+            .contentShape(.circle)
+            .glassEffect(.regular.interactive(), in: .circle)
             .help("设置")
         }
         .padding(.horizontal, 30)
@@ -115,19 +96,42 @@ struct DictionaryHomeView: View {
 
     private var dictionaryGrid: some View {
         ScrollView {
-            CardFlowLayout(spacing: 16) {
-                ForEach(dictionaryStore.entries) { entry in
-                    DictionaryCardView(
-                        entry: entry,
-                        onEdit: { editingEntry = entry },
-                        onDelete: { entryPendingDeletion = entry }
-                    )
-                    .frame(width: 286)
+            LazyVStack(alignment: .leading, spacing: 28) {
+                ForEach(dateSections) { section in
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 10) {
+                            Text(sectionTitle(for: section.date))
+                                .font(.headline)
+
+                            Text("\(section.entries.count)")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(.primary.opacity(0.06), in: .capsule)
+
+                            Rectangle()
+                                .fill(.primary.opacity(0.08))
+                                .frame(height: 1)
+                        }
+
+                        CardFlowLayout(spacing: 16) {
+                            ForEach(section.entries) { entry in
+                                DictionaryCardView(
+                                    entry: entry,
+                                    onOpen: { selectedEntryID = entry.id }
+                                )
+                                .frame(width: 286)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
             }
             .padding(.horizontal, 30)
+            .padding(.top, 12)
             .padding(.bottom, 30)
-            .animation(.spring(response: 0.46, dampingFraction: 0.88), value: dictionaryStore.entries)
+            .animation(.spring(response: 0.46, dampingFraction: 0.88), value: orderedEntries)
         }
         .scrollIndicators(.never)
     }
@@ -180,70 +184,151 @@ struct DictionaryHomeView: View {
         .ignoresSafeArea()
     }
 
-    private func update(_ entry: DictionaryEntry) {
-        do {
-            try dictionaryStore.update(entry)
-            editingEntry = nil
-        } catch {
-            operationErrorMessage = error.localizedDescription
+    private var orderedEntries: [DictionaryEntry] {
+        dictionaryStore.entries.sorted {
+            if $0.createdAt == $1.createdAt {
+                return $0.updatedAt > $1.updatedAt
+            }
+            return $0.createdAt > $1.createdAt
         }
     }
 
-    private func deletePendingEntry() {
-        guard let entryPendingDeletion else { return }
+    private var dateSections: [DictionaryDateSection] {
+        let calendar = Calendar.current
+        let groups = Dictionary(grouping: orderedEntries) {
+            calendar.startOfDay(for: $0.createdAt)
+        }
+        return groups
+            .map { DictionaryDateSection(date: $0.key, entries: $0.value) }
+            .sorted { $0.date > $1.date }
+    }
+
+    private var selectedEntry: DictionaryEntry? {
+        guard let selectedEntryID else { return nil }
+        return orderedEntries.first { $0.id == selectedEntryID }
+    }
+
+    @ViewBuilder
+    private var detailOverlay: some View {
+        if let entry = selectedEntry,
+           let index = orderedEntries.firstIndex(where: { $0.id == entry.id }) {
+            ZStack {
+                Color.black.opacity(0.16)
+                    .ignoresSafeArea()
+                    .contentShape(.rect)
+                    .onTapGesture {
+                        selectedEntryID = nil
+                    }
+                    .accessibilityHidden(true)
+
+                DictionaryEntryDetailView(
+                    entry: entry,
+                    position: index + 1,
+                    totalCount: orderedEntries.count,
+                    canGoPrevious: index > 0,
+                    canGoNext: index < orderedEntries.count - 1,
+                    onPrevious: { moveSelection(by: -1) },
+                    onNext: { moveSelection(by: 1) },
+                    onSave: update,
+                    onDelete: delete,
+                    onClose: { selectedEntryID = nil }
+                )
+                .id(entry.id)
+                .clipShape(.rect(cornerRadius: 22))
+                .shadow(color: .black.opacity(0.22), radius: 20, y: 8)
+                .transition(.scale(scale: 0.97).combined(with: .opacity))
+            }
+            .zIndex(1)
+            .transition(.opacity)
+        }
+    }
+
+    private func sectionTitle(for date: Date) -> String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(date) { return "今天" }
+        if calendar.isDateInYesterday(date) { return "昨天" }
+        return date.formatted(date: .long, time: .omitted)
+    }
+
+    private func moveSelection(by offset: Int) {
+        guard let selectedEntryID,
+              let currentIndex = orderedEntries.firstIndex(where: { $0.id == selectedEntryID }) else {
+            return
+        }
+        let targetIndex = currentIndex + offset
+        guard orderedEntries.indices.contains(targetIndex) else { return }
+        self.selectedEntryID = orderedEntries[targetIndex].id
+    }
+
+    private func update(_ entry: DictionaryEntry) -> Bool {
         do {
-            try dictionaryStore.delete(entryPendingDeletion)
-            self.entryPendingDeletion = nil
+            try dictionaryStore.update(entry)
+            selectedEntryID = entry.id
+            return true
         } catch {
             operationErrorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    private func delete(_ entry: DictionaryEntry) -> Bool {
+        let entriesBeforeDeletion = orderedEntries
+        let deletedIndex = entriesBeforeDeletion.firstIndex { $0.id == entry.id }
+        let fallbackID = deletedIndex.flatMap { index -> UUID? in
+            if entriesBeforeDeletion.indices.contains(index + 1) {
+                return entriesBeforeDeletion[index + 1].id
+            }
+            if entriesBeforeDeletion.indices.contains(index - 1) {
+                return entriesBeforeDeletion[index - 1].id
+            }
+            return nil
+        }
+
+        do {
+            try dictionaryStore.delete(entry)
+            selectedEntryID = fallbackID
+            return true
+        } catch {
+            operationErrorMessage = error.localizedDescription
+            return false
         }
     }
 }
 
+private struct DictionaryDateSection: Identifiable {
+    let date: Date
+    let entries: [DictionaryEntry]
+
+    var id: Date { date }
+}
+
 private struct DictionaryCardView: View {
     let entry: DictionaryEntry
-    let onEdit: () -> Void
-    let onDelete: () -> Void
+    let onOpen: () -> Void
 
-    @Environment(\.colorScheme) private var colorScheme
     @State private var isHovering = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text("\(entry.sourceLanguage.displayName) → \(entry.targetLanguage.displayName)")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(AppTheme.accentDeep)
-
-                Spacer()
-
-                HStack(spacing: 4) {
-                    Button(action: onEdit) {
-                        Image(systemName: "square.and.pencil")
-                            .foregroundStyle(actionColor)
-                    }
-                    .help("编辑与添加笔记")
-
-                    Button(action: onDelete) {
-                        Image(systemName: "trash")
-                            .foregroundStyle(actionColor)
-                    }
-                    .help("删除")
-                }
-                .buttonStyle(.plain)
-                .opacity(isHovering ? 1 : 0.55)
-            }
-
+        VStack(alignment: .leading, spacing: 12) {
             Text(entry.sourceText)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-                .lineLimit(4)
+                .font(.system(size: 20, weight: .bold, design: .rounded))
+                .foregroundStyle(.primary)
+                .lineLimit(3)
                 .textSelection(.enabled)
 
-            Text(entry.translatedText)
-                .font(.system(size: 17, weight: .semibold))
-                .lineLimit(5)
-                .textSelection(.enabled)
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(entry.translatedText)
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(4)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Text("\(entry.sourceLanguage.displayName) → \(entry.targetLanguage.displayName)")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(AppTheme.accentDeep)
+                    .fixedSize()
+            }
 
             if !entry.note.isEmpty {
                 Label {
@@ -259,131 +344,30 @@ private struct DictionaryCardView: View {
                 .background(.primary.opacity(0.045), in: .rect(cornerRadius: 10))
             }
 
-            HStack {
-                Text(entry.updatedAt, format: .dateTime.month().day())
-                Spacer()
-                if !entry.examples.isEmpty {
-                    Label("\(entry.examples.count) 个例句", systemImage: "text.quote")
-                }
-            }
-            .font(.caption2)
-            .foregroundStyle(.tertiary)
         }
         .padding(18)
         .contentShape(.rect)
-        .glassEffect(
-            .regular.tint(isHovering ? AppTheme.accent.opacity(0.1) : nil).interactive(),
-            in: .rect(cornerRadius: 20)
+        .background(.ultraThinMaterial, in: .rect(cornerRadius: 14))
+        .background(
+            isHovering ? AppTheme.accent.opacity(0.08) : .primary.opacity(0.025),
+            in: .rect(cornerRadius: 14)
         )
-        .background(.primary.opacity(0.035), in: .rect(cornerRadius: 20))
         .overlay {
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(.primary.opacity(isHovering ? 0.18 : 0.1), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(.primary.opacity(isHovering ? 0.14 : 0.08), lineWidth: 1)
         }
-        .scaleEffect(isHovering ? 1.012 : 1)
+        .shadow(
+            color: .black.opacity(isHovering ? 0.08 : 0.045),
+            radius: isHovering ? 4 : 2,
+            y: 1
+        )
+        .scaleEffect(isHovering ? 1.006 : 1)
         .onHover { hovering in
             withAnimation(.easeOut(duration: 0.18)) {
                 isHovering = hovering
             }
         }
-        .onTapGesture(perform: onEdit)
-    }
-
-    private var actionColor: Color {
-        colorScheme == .dark ? Color.white.opacity(0.82) : AppTheme.ink.opacity(0.72)
-    }
-}
-
-private struct DictionaryEntryEditorView: View {
-    @Environment(\.dismiss) private var dismiss
-
-    let onSave: (DictionaryEntry) -> Void
-    @State private var draft: DictionaryEntry
-
-    init(entry: DictionaryEntry, onSave: @escaping (DictionaryEntry) -> Void) {
-        _draft = State(initialValue: entry)
-        self.onSave = onSave
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("编辑词典条目")
-                        .font(.title2.weight(.bold))
-                    Text("修改原文、译文，或记录自己的理解。")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-            }
-
-            HStack(spacing: 12) {
-                Picker("源语言", selection: $draft.sourceLanguage) {
-                    ForEach(TranslationLanguage.allCases) { language in
-                        Text(language.displayName).tag(language)
-                    }
-                }
-                Picker("目标语言", selection: $draft.targetLanguage) {
-                    ForEach(TranslationLanguage.allCases) { language in
-                        Text(language.displayName).tag(language)
-                    }
-                }
-            }
-
-            editorField(title: "原文", text: $draft.sourceText, minHeight: 82)
-            editorField(title: "译文", text: $draft.translatedText, minHeight: 82)
-            editorField(title: "笔记", text: $draft.note, minHeight: 100, prompt: "添加用法、语境或记忆提示…")
-
-            HStack {
-                Spacer()
-                Button("取消") {
-                    dismiss()
-                }
-                .keyboardShortcut(.cancelAction)
-
-                Button("保存") {
-                    onSave(draft)
-                }
-                .buttonStyle(.glass(.regular.tint(AppTheme.accent).interactive()))
-                .keyboardShortcut(.defaultAction)
-                .disabled(
-                    draft.sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    || draft.translatedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                )
-            }
-        }
-        .padding(26)
-        .frame(width: 570)
-        .background(.ultraThinMaterial)
-    }
-
-    private func editorField(
-        title: String,
-        text: Binding<String>,
-        minHeight: CGFloat,
-        prompt: String = ""
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-
-            ZStack(alignment: .topLeading) {
-                if text.wrappedValue.isEmpty, !prompt.isEmpty {
-                    Text(prompt)
-                        .foregroundStyle(.tertiary)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 8)
-                }
-                TextEditor(text: text)
-                    .font(.body)
-                    .scrollContentBackground(.hidden)
-            }
-            .padding(8)
-            .frame(minHeight: minHeight)
-            .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 14))
-        }
+        .onTapGesture(perform: onOpen)
     }
 }
 

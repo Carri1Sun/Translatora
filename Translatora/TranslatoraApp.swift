@@ -20,6 +20,7 @@ struct TranslatoraApp: App {
                     dependencies.start()
                 }
         }
+        .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 980, height: 720)
 
         Settings {
