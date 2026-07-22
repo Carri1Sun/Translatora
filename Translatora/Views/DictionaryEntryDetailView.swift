@@ -100,11 +100,8 @@ struct DictionaryEntryDetailView: View {
                 Image(systemName: "xmark")
                     .frame(width: 20, height: 20)
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.primary)
-            .frame(width: 32, height: 32)
-            .contentShape(.circle)
-            .glassEffect(.regular.interactive(), in: .circle)
+            .buttonStyle(.glass(.regular.interactive()))
+            .buttonBorderShape(.circle)
             .help("关闭")
         }
         .padding(.horizontal, 24)
@@ -364,11 +361,8 @@ private struct DictionaryEntryEditorView: View {
                 Image(systemName: "chevron.left")
                     .frame(width: 20, height: 20)
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.primary)
-            .frame(width: 32, height: 32)
-            .contentShape(.circle)
-            .glassEffect(.regular.interactive(), in: .circle)
+            .buttonStyle(.glass(.regular.interactive()))
+            .buttonBorderShape(.circle)
             .help("返回详情")
 
             VStack(alignment: .leading, spacing: 2) {

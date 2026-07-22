@@ -82,11 +82,8 @@ struct DictionaryHomeView: View {
                 Image(systemName: "gearshape")
                     .frame(width: 22, height: 22)
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.primary)
-            .frame(width: 36, height: 36)
-            .contentShape(.circle)
-            .glassEffect(.regular.interactive(), in: .circle)
+            .buttonStyle(.glass(.regular.interactive()))
+            .buttonBorderShape(.circle)
             .help("设置")
         }
         .padding(.horizontal, 30)

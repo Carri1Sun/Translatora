@@ -17,24 +17,21 @@ Button(action: action) {
 
 ## 修复方式
 
-让标签只描述图标内容，把命中尺寸、命中形状和交互效果设置在 `Button`、`SettingsLink` 等完整控件上：
+让标签只描述图标内容，并直接使用系统提供的按钮样式。按钮的命中区域、按压反馈和玻璃效果都应由 `ButtonStyle` 管理：
 
 ```swift
 Button(action: action) {
     Image(systemName: "xmark")
         .frame(width: 20, height: 20)
 }
-.buttonStyle(.plain)
-.foregroundStyle(.primary)
-.frame(width: 32, height: 32)
-.contentShape(.circle)
-.glassEffect(.regular.interactive(), in: .circle)
+.buttonStyle(.glass(.regular.interactive()))
+.buttonBorderShape(.circle)
 .help("关闭")
 ```
 
-这里的修饰符位于 `Button` 闭包之外，因此 32 × 32 的完整控件负责命中测试和交互反馈。`contentShape` 明确了圆形命中区域，`glassEffect` 也会响应整个按钮，而不是只响应内部图标。
+不要先用 `.plain` 清除按钮样式，再通过外层 `.frame`、`.contentShape` 和 `.glassEffect` 手动模拟按钮。外层视图尺寸不一定会扩大 `.plain` 按钮内部标签的命中区域，也会绕过系统按钮对键盘焦点和按压状态的管理。
 
-也可以使用能提供正确命中区域的系统或自定义 `ButtonStyle`。需要注意浅色和深色界面的图标对比度；如果按钮样式会覆盖前景色，应通过渲染检查确认结果。
+如果系统样式不能满足视觉要求，应实现自定义 `ButtonStyle`，而不是把交互效果直接放在 `Image` 或普通 View 修饰符上。修改后还需要分别检查浅色和深色界面的图标对比度。
 
 ## 本次修复范围
 
@@ -45,6 +42,6 @@ Button(action: action) {
 ## 检查清单
 
 - 点击动作是否定义在 `Button` 或语义等价的控件上。
-- 命中尺寸、`contentShape` 和交互效果是否作用于控件，而不是内部图标。
+- 交互外观是否通过 `ButtonStyle` 作用于控件，而不是通过普通 View 修饰符模拟。
 - 标签内部是否只保留图标内容和必要的图标尺寸。
 - 鼠标按压、键盘焦点和辅助功能是否共享同一个按钮区域。
