@@ -81,11 +81,12 @@ final class TranslationPanelViewModel: ObservableObject {
         }
     }
 
-    func saveResult() {
-        guard let result, !isSaved else { return }
+    @discardableResult
+    func saveResult() -> DictionaryEntry? {
+        guard let result, !isSaved else { return nil }
 
         do {
-            try dictionaryStore.add(
+            let entry = try dictionaryStore.add(
                 sourceText: normalizedInput,
                 translatedText: result.translation,
                 sourceLanguage: sourceLanguage,
@@ -94,8 +95,10 @@ final class TranslationPanelViewModel: ObservableObject {
             )
             isSaved = true
             saveErrorMessage = nil
+            return entry
         } catch {
             saveErrorMessage = error.localizedDescription
+            return nil
         }
     }
 

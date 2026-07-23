@@ -4,9 +4,11 @@ struct SettingsCardView: View {
     @ObservedObject var configurationStore: ConfigurationStore
     let modelProvider: ModelProvider
     @ObservedObject var appearanceStore: AppearanceStore
+    @ObservedObject var menuBarStore: MenuBarStore
     @ObservedObject var shortcutStore: ShortcutStore
     let shortcutErrorMessage: String?
-    let updateShortcut: (GlobalShortcut) -> Bool
+    let updateTranslationShortcut: (GlobalShortcut?) -> Bool
+    let updateSaveShortcut: (GlobalShortcut?) -> Bool
     let selectedTextReader: SelectedTextReader
     let onClose: () -> Void
 
@@ -20,9 +22,11 @@ struct SettingsCardView: View {
                 configurationStore: configurationStore,
                 modelProvider: modelProvider,
                 appearanceStore: appearanceStore,
+                menuBarStore: menuBarStore,
                 shortcutStore: shortcutStore,
                 shortcutErrorMessage: shortcutErrorMessage,
-                updateShortcut: updateShortcut,
+                updateTranslationShortcut: updateTranslationShortcut,
+                updateSaveShortcut: updateSaveShortcut,
                 selectedTextReader: selectedTextReader
             )
         }
@@ -35,7 +39,7 @@ struct SettingsCardView: View {
                 Text("设置")
                     .font(.title2.weight(.bold))
 
-                Text("调整外观、快捷键与翻译服务。")
+                Text("调整外观、菜单栏、快捷键与翻译服务。")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

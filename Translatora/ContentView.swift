@@ -46,6 +46,10 @@ struct DictionaryHomeView: View {
                 selectedEntryID = nil
             }
         }
+        .onAppear(perform: presentRequestedDictionaryEntry)
+        .onChange(of: dependencies.requestedDictionaryEntryID) { _, _ in
+            presentRequestedDictionaryEntry()
+        }
         .alert(
             "无法完成操作",
             isPresented: Binding(
@@ -158,7 +162,7 @@ struct DictionaryHomeView: View {
             VStack(spacing: 7) {
                 Text("词典还是空的")
                     .font(.title3.weight(.semibold))
-                Text("选中任意文本后按下 \(shortcutStore.shortcut.displayName)，翻译完成再决定是否收藏。")
+                Text(emptyStateDescription)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -187,6 +191,13 @@ struct DictionaryHomeView: View {
             )
         }
         .ignoresSafeArea()
+    }
+
+    private var emptyStateDescription: String {
+        if let shortcut = shortcutStore.translationShortcut {
+            return "选中任意文本后按下 \(shortcut.displayName)，翻译完成再决定是否收藏。"
+        }
+        return "从“翻译”菜单打开翻译浮窗，翻译完成再决定是否收藏。"
     }
 
     private var orderedEntries: [DictionaryEntry] {
@@ -263,9 +274,11 @@ struct DictionaryHomeView: View {
                     configurationStore: dependencies.configurationStore,
                     modelProvider: dependencies.modelProvider,
                     appearanceStore: dependencies.appearanceStore,
+                    menuBarStore: dependencies.menuBarStore,
                     shortcutStore: dependencies.shortcutStore,
                     shortcutErrorMessage: dependencies.shortcutErrorMessage,
-                    updateShortcut: dependencies.updateGlobalShortcut,
+                    updateTranslationShortcut: dependencies.updateTranslationShortcut,
+                    updateSaveShortcut: dependencies.updateSaveShortcut,
                     selectedTextReader: dependencies.selectedTextReader,
                     onClose: dependencies.dismissSettings
                 )
@@ -290,6 +303,15 @@ struct DictionaryHomeView: View {
     private func showSettings() {
         selectedEntryID = nil
         dependencies.presentSettings()
+    }
+
+    private func presentRequestedDictionaryEntry() {
+        guard let entryID = dependencies.requestedDictionaryEntryID,
+              orderedEntries.contains(where: { $0.id == entryID }) else {
+            return
+        }
+        selectedEntryID = entryID
+        dependencies.consumeRequestedDictionaryEntry()
     }
 
     private func moveSelection(by offset: Int) {
@@ -351,44 +373,45 @@ private struct DictionaryCardView: View {
     @State private var isHovering = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(entry.sourceText)
-                .font(.system(size: 20, weight: .bold, design: .rounded))
-                .foregroundStyle(.primary)
-                .lineLimit(3)
-                .textSelection(.enabled)
+        Button(action: onOpen) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(entry.sourceText)
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundStyle(.primary)
+                    .lineLimit(3)
 
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                Text(entry.translatedText)
-                    .font(.system(size: 14, weight: .regular))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(4)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Text(entry.translatedText)
+                        .font(.system(size: 14, weight: .regular))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(4)
+                        .frame(maxWidth: .infinity, alignment: .leading)
 
-                Text("\(entry.sourceLanguage.displayName) → \(entry.targetLanguage.displayName)")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(AppTheme.accentDeep)
-                    .fixedSize()
-            }
-
-            if !entry.note.isEmpty {
-                Label {
-                    Text(entry.note)
-                        .lineLimit(3)
-                } icon: {
-                    Image(systemName: "note.text")
+                    Text("\(entry.sourceLanguage.displayName) → \(entry.targetLanguage.displayName)")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(AppTheme.accentDeep)
+                        .fixedSize()
                 }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .padding(10)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.primary.opacity(0.045), in: .rect(cornerRadius: 10))
-            }
 
+                if !entry.note.isEmpty {
+                    Label {
+                        Text(entry.note)
+                            .lineLimit(3)
+                    } icon: {
+                        Image(systemName: "note.text")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.primary.opacity(0.045), in: .rect(cornerRadius: 10))
+                }
+            }
+            .padding(18)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(.rect)
         }
-        .padding(18)
-        .contentShape(.rect)
+        .buttonStyle(.plain)
         .background(.ultraThinMaterial, in: .rect(cornerRadius: 14))
         .background(
             isHovering ? AppTheme.accent.opacity(0.08) : .primary.opacity(0.025),
@@ -409,7 +432,7 @@ private struct DictionaryCardView: View {
                 isHovering = hovering
             }
         }
-        .onTapGesture(perform: onOpen)
+        .accessibilityHint("打开词汇详情")
     }
 }
 

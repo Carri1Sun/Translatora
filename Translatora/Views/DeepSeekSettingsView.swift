@@ -12,9 +12,11 @@ struct DeepSeekSettingsView: View {
     @ObservedObject var configurationStore: ConfigurationStore
     let modelProvider: ModelProvider
     @ObservedObject var appearanceStore: AppearanceStore
+    @ObservedObject var menuBarStore: MenuBarStore
     @ObservedObject var shortcutStore: ShortcutStore
     let shortcutErrorMessage: String?
-    let updateShortcut: (GlobalShortcut) -> Bool
+    let updateTranslationShortcut: (GlobalShortcut?) -> Bool
+    let updateSaveShortcut: (GlobalShortcut?) -> Bool
     let selectedTextReader: SelectedTextReader
 
     @State private var apiKey = ""
@@ -39,28 +41,30 @@ struct DeepSeekSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section("翻译浮窗快捷键") {
-                HStack(spacing: 12) {
-                    Text("全局快捷键")
+            Section("菜单栏") {
+                Toggle("显示菜单栏图标", isOn: menuBarVisibilityBinding)
 
-                    Spacer()
+                Text("隐藏后仍可通过应用首页的设置重新开启，Dock 中的 Translatora 也会继续保留。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
-                    ShortcutRecorderView(
-                        shortcut: shortcutStore.shortcut,
-                        onChange: applyShortcut,
-                        onValidationError: { message in
-                            shortcutValidationError = message
-                        }
-                    )
-                    .frame(width: 190)
+            Section("快捷键") {
+                shortcutRow(
+                    title: "打开翻译浮窗",
+                    shortcut: shortcutStore.translationShortcut,
+                    onChange: applyTranslationShortcut,
+                    onDelete: { applyTranslationShortcut(nil) }
+                )
 
-                    Button("恢复默认") {
-                        applyShortcut(.default)
-                    }
-                    .disabled(shortcutStore.shortcut == .default)
-                }
+                shortcutRow(
+                    title: "保存词汇到词典",
+                    shortcut: shortcutStore.saveShortcut,
+                    onChange: applySaveShortcut,
+                    onDelete: { applySaveShortcut(nil) }
+                )
 
-                Text("点击快捷键后直接按下新的组合；组合中至少需要一个修饰键。按 Esc 可取消录制。")
+                Text("点击快捷键后直接按下新的组合；组合中至少需要一个修饰键。保存快捷键仅在翻译浮窗中生效，按 Esc 可取消录制。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -129,7 +133,7 @@ struct DeepSeekSettingsView: View {
                     }
                 }
 
-                Text("用于在按下 \(shortcutStore.shortcut.displayName) 时读取其他应用当前选中的文本；权限缺失不会影响手动输入翻译。")
+                Text(accessibilityDescription)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -181,12 +185,56 @@ struct DeepSeekSettingsView: View {
         )
     }
 
+    private var menuBarVisibilityBinding: Binding<Bool> {
+        Binding(
+            get: { menuBarStore.isVisible },
+            set: menuBarStore.setVisible
+        )
+    }
+
     private var isTesting: Bool {
         feedback == .testing
     }
 
     private var draftConfiguration: DeepSeekConfiguration {
         DeepSeekConfiguration(apiKey: apiKey, model: selectedModel).normalized
+    }
+
+    private var accessibilityDescription: String {
+        if let shortcut = shortcutStore.translationShortcut {
+            return "用于在按下 \(shortcut.displayName) 时读取其他应用当前选中的文本；权限缺失不会影响手动输入翻译。"
+        }
+        return "用于从其他应用读取当前选中的文本；当前未设置打开翻译浮窗的快捷键，仍可从应用菜单手动打开。"
+    }
+
+    private func shortcutRow(
+        title: String,
+        shortcut: GlobalShortcut?,
+        onChange: @escaping (GlobalShortcut) -> Void,
+        onDelete: @escaping () -> Void
+    ) -> some View {
+        HStack(spacing: 12) {
+            Text(title)
+
+            Spacer()
+
+            ShortcutRecorderView(
+                shortcut: shortcut,
+                onChange: onChange,
+                onValidationError: { message in
+                    shortcutValidationError = message
+                }
+            )
+            .frame(width: 190)
+
+            Button(action: onDelete) {
+                Image(systemName: "trash")
+                    .frame(width: 18, height: 18)
+            }
+            .buttonStyle(.borderless)
+            .disabled(shortcut == nil)
+            .help("删除快捷键")
+        }
     }
 
     private func loadSavedConfiguration() {
@@ -232,9 +280,14 @@ struct DeepSeekSettingsView: View {
         isAccessibilityTrusted = selectedTextReader.isAccessibilityTrusted
     }
 
-    private func applyShortcut(_ shortcut: GlobalShortcut) {
+    private func applyTranslationShortcut(_ shortcut: GlobalShortcut?) {
         shortcutValidationError = nil
-        _ = updateShortcut(shortcut)
+        _ = updateTranslationShortcut(shortcut)
+    }
+
+    private func applySaveShortcut(_ shortcut: GlobalShortcut?) {
+        shortcutValidationError = nil
+        _ = updateSaveShortcut(shortcut)
     }
 }
 
@@ -244,9 +297,11 @@ struct DeepSeekSettingsView: View {
         configurationStore: store,
         modelProvider: ModelProvider(configurationStore: store),
         appearanceStore: AppearanceStore(),
+        menuBarStore: MenuBarStore(),
         shortcutStore: ShortcutStore(),
         shortcutErrorMessage: nil,
-        updateShortcut: { _ in true },
+        updateTranslationShortcut: { _ in true },
+        updateSaveShortcut: { _ in true },
         selectedTextReader: SelectedTextReader()
     )
     .frame(width: 540, height: 560)

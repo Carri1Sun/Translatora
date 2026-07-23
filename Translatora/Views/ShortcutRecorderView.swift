@@ -3,7 +3,7 @@ import Carbon
 import SwiftUI
 
 struct ShortcutRecorderView: NSViewRepresentable {
-    let shortcut: GlobalShortcut
+    let shortcut: GlobalShortcut?
     let onChange: (GlobalShortcut) -> Void
     let onValidationError: (String) -> Void
 
@@ -23,7 +23,7 @@ struct ShortcutRecorderView: NSViewRepresentable {
 }
 
 final class ShortcutRecorderButton: NSButton {
-    var shortcut = GlobalShortcut.default {
+    var shortcut: GlobalShortcut? {
         didSet { updateTitle() }
     }
     var onChange: ((GlobalShortcut) -> Void)?
@@ -96,7 +96,7 @@ final class ShortcutRecorderButton: NSButton {
     }
 
     private func updateTitle() {
-        title = isRecording ? "请按新的快捷键…" : shortcut.displayName
-        toolTip = isRecording ? "按 Esc 取消" : "点击后录制新的快捷键"
+        title = isRecording ? "请按新的快捷键…" : (shortcut?.displayName ?? "未设置")
+        toolTip = isRecording ? "按 Esc 取消" : "点击后录制快捷键"
     }
 }

@@ -5,6 +5,7 @@ struct TranslationPanelView: View {
     @ObservedObject var appearanceStore: AppearanceStore
     @ObservedObject var shortcutStore: ShortcutStore
     let onClose: () -> Void
+    let onSaved: (DictionaryEntry) -> Void
 
     @Environment(\.colorScheme) private var colorScheme
     @FocusState private var inputFocused: Bool
@@ -60,7 +61,7 @@ struct TranslationPanelView: View {
 
             Spacer()
 
-            Text(shortcutStore.shortcut.spacedDisplayName)
+            Text(shortcutStore.translationShortcut?.spacedDisplayName ?? "未设置")
                 .font(.caption.monospaced())
                 .foregroundStyle(mutedColor)
                 .padding(.horizontal, 10)
@@ -71,10 +72,9 @@ struct TranslationPanelView: View {
                 Image(systemName: "xmark")
                     .frame(width: 20, height: 20)
                     .foregroundStyle(.primary)
-                    .padding(6)
-                    .glassEffect(.regular.interactive(), in: .circle)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.glass(.regular.interactive()))
+            .buttonBorderShape(.circle)
             .help("关闭 (Esc)")
         }
     }
@@ -151,7 +151,7 @@ struct TranslationPanelView: View {
         case .idle:
             HStack(spacing: 6) {
                 Image(systemName: "selection.pin.in.out")
-                Text("选中文本后按 \(shortcutStore.shortcut.displayName)，可直接开始翻译")
+                Text(idleDescription)
             }
             .font(.caption)
             .foregroundStyle(.tertiary)
@@ -239,7 +239,7 @@ struct TranslationPanelView: View {
                     Spacer()
 
                     Button {
-                        viewModel.saveResult()
+                        saveResult()
                     } label: {
                         Label(
                             viewModel.isSaved ? "已保存到词典" : "保存到词典",
@@ -253,6 +253,7 @@ struct TranslationPanelView: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(viewModel.isSaved)
+                    .help(saveButtonHelp)
                 }
             }
             .padding(18)
@@ -295,5 +296,24 @@ struct TranslationPanelView: View {
 
     private var mutedColor: Color {
         colorScheme == .dark ? Color.white.opacity(0.68) : Color.secondary
+    }
+
+    private var idleDescription: String {
+        if let shortcut = shortcutStore.translationShortcut {
+            return "选中文本后按 \(shortcut.displayName)，可直接开始翻译"
+        }
+        return "输入文本后按 Return 开始翻译"
+    }
+
+    private var saveButtonHelp: String {
+        if let shortcut = shortcutStore.saveShortcut {
+            return "保存到词典 (\(shortcut.displayName))"
+        }
+        return "保存到词典"
+    }
+
+    private func saveResult() {
+        guard let entry = viewModel.saveResult() else { return }
+        onSaved(entry)
     }
 }
