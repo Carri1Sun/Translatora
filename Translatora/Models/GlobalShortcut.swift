@@ -85,6 +85,11 @@ struct GlobalShortcut: Codable, Equatable, Hashable, Sendable {
         )
     }
 
+    func matches(_ event: NSEvent) -> Bool {
+        keyCode == UInt32(event.keyCode)
+            && modifiers == GlobalShortcutModifiers(eventFlags: event.modifierFlags)
+    }
+
     private static func keyDisplayName(for event: NSEvent) -> String? {
         switch Int(event.keyCode) {
         case kVK_Return: return "↩"

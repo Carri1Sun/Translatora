@@ -105,9 +105,11 @@ struct RenderingSmokeTests {
             configurationStore: configurationStore,
             modelProvider: ModelProvider(configurationStore: configurationStore),
             appearanceStore: AppearanceStore(defaults: defaults),
+            menuBarStore: MenuBarStore(defaults: defaults),
             shortcutStore: ShortcutStore(defaults: defaults),
             shortcutErrorMessage: nil,
-            updateShortcut: { _ in true },
+            updateTranslationShortcut: { _ in true },
+            updateSaveShortcut: { _ in true },
             selectedTextReader: SelectedTextReader(),
             onClose: {}
         )
@@ -149,7 +151,8 @@ struct RenderingSmokeTests {
             shortcutStore: ShortcutStore(
                 defaults: UserDefaults(suiteName: "TranslatoraRender.Shortcut.Panel")!
             ),
-            onClose: {}
+            onClose: {},
+            onSaved: { _ in }
         )
         .environment(\.colorScheme, .dark)
         .frame(width: 640, height: 650)

@@ -28,7 +28,8 @@ struct TranslationPanelViewModelTests {
         #expect(viewModel.result?.translation == "你好")
         #expect(dictionaryStore.entries.isEmpty)
 
-        viewModel.saveResult()
+        let savedEntry = viewModel.saveResult()
+        #expect(savedEntry != nil)
         #expect(dictionaryStore.entries.count == 1)
         #expect(dictionaryStore.entries.first?.sourceText == "Hello")
 

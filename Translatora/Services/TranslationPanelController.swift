@@ -8,6 +8,8 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
     private let viewModel: TranslationPanelViewModel
     private let shortcutStore: ShortcutStore
     private let selectedTextReader: SelectedTextReader
+    private let onViewDictionaryEntry: (UUID) -> Void
+    private let savedToastController = SavedEntryToastController()
     private var phaseCancellable: AnyCancellable?
     private var appearanceCancellable: AnyCancellable?
     private var selectionReadTask: Task<Void, Never>?
@@ -18,7 +20,8 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
         dictionaryStore: DictionaryStore,
         appearanceStore: AppearanceStore,
         shortcutStore: ShortcutStore,
-        selectedTextReader: SelectedTextReader
+        selectedTextReader: SelectedTextReader,
+        onViewDictionaryEntry: @escaping (UUID) -> Void
     ) {
         viewModel = TranslationPanelViewModel(
             translationService: translationService,
@@ -26,6 +29,7 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
         )
         self.shortcutStore = shortcutStore
         self.selectedTextReader = selectedTextReader
+        self.onViewDictionaryEntry = onViewDictionaryEntry
         panel = TranslationPanel(
             contentRect: NSRect(x: 0, y: 0, width: 640, height: 350),
             styleMask: [.titled, .closable, .fullSizeContentView, .nonactivatingPanel],
@@ -57,6 +61,7 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
 
     func show() {
         guard selectionReadTask == nil else { return }
+        savedToastController.dismiss()
         selectionReadGeneration += 1
         let generation = selectionReadGeneration
 
@@ -105,12 +110,16 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
         panel.minSize = NSSize(width: 640, height: 350)
         panel.maxSize = NSSize(width: 640, height: 760)
+        panel.onKeyDown = { [weak self] event in
+            self?.handleSaveShortcut(event) ?? false
+        }
 
         let rootView = TranslationPanelView(
             viewModel: viewModel,
             appearanceStore: appearanceStore,
             shortcutStore: shortcutStore,
-            onClose: { [weak self] in self?.close() }
+            onClose: { [weak self] in self?.close() },
+            onSaved: { [weak self] entry in self?.handleSavedEntry(entry) }
         )
         panel.contentViewController = NSHostingController(rootView: rootView)
     }
@@ -169,9 +178,133 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
             panel.animator().setFrame(targetFrame, display: true)
         }
     }
+
+    private func handleSaveShortcut(_ event: NSEvent) -> Bool {
+        guard let shortcut = shortcutStore.saveShortcut,
+              shortcut.matches(event) else {
+            return false
+        }
+
+        guard let entry = viewModel.saveResult() else {
+            NSSound.beep()
+            return true
+        }
+        handleSavedEntry(entry)
+        return true
+    }
+
+    private func handleSavedEntry(_ entry: DictionaryEntry) {
+        let anchorFrame = panel.frame
+        panel.orderOut(nil)
+        viewModel.reset()
+        savedToastController.show(near: anchorFrame, appearance: panel.appearance) { [weak self] in
+            self?.onViewDictionaryEntry(entry.id)
+        }
+    }
 }
 
 private final class TranslationPanel: NSPanel {
+    var onKeyDown: ((NSEvent) -> Bool)?
+
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .keyDown, onKeyDown?(event) == true {
+            return
+        }
+        super.sendEvent(event)
+    }
+}
+
+@MainActor
+private final class SavedEntryToastController {
+    private var panel: NSPanel?
+    private var dismissalTask: Task<Void, Never>?
+
+    func show(
+        near anchorFrame: NSRect,
+        appearance: NSAppearance?,
+        onView: @escaping () -> Void
+    ) {
+        dismiss()
+
+        let size = NSSize(width: 200, height: 58)
+        let panel = NSPanel(
+            contentRect: NSRect(origin: .zero, size: size),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = true
+        panel.appearance = appearance
+        panel.level = .floating
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
+        panel.contentViewController = NSHostingController(
+            rootView: SavedEntryToastView { [weak self] in
+                self?.dismiss()
+                onView()
+            }
+        )
+
+        let visibleFrame = NSScreen.screens
+            .first(where: { $0.frame.intersects(anchorFrame) })?
+            .visibleFrame ?? NSScreen.main?.visibleFrame ?? anchorFrame
+        let origin = NSPoint(
+            x: min(
+                max(anchorFrame.maxX - size.width, visibleFrame.minX + 12),
+                visibleFrame.maxX - size.width - 12
+            ),
+            y: min(
+                max(anchorFrame.maxY - size.height - 12, visibleFrame.minY + 12),
+                visibleFrame.maxY - size.height - 12
+            )
+        )
+        panel.setFrameOrigin(origin)
+        panel.orderFrontRegardless()
+        self.panel = panel
+
+        dismissalTask = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 4_000_000_000)
+            guard !Task.isCancelled else { return }
+            self?.dismiss()
+        }
+    }
+
+    func dismiss() {
+        dismissalTask?.cancel()
+        dismissalTask = nil
+        panel?.orderOut(nil)
+        panel = nil
+    }
+}
+
+private struct SavedEntryToastView: View {
+    let onView: () -> Void
+
+    var body: some View {
+        Button(action: onView) {
+            HStack(spacing: 10) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(AppTheme.accentDeep)
+
+                Text("已保存到词典")
+                    .font(.subheadline.weight(.semibold))
+
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 16)
+            .frame(width: 200, height: 58)
+            .contentShape(.rect)
+            .background(.ultraThinMaterial, in: .rect(cornerRadius: 16))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(.primary.opacity(0.1), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+    }
 }
