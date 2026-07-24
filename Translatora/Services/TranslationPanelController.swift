@@ -64,17 +64,24 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
         savedToastController.dismiss()
         selectionReadGeneration += 1
         let generation = selectionReadGeneration
+        let sourceProcessIdentifier = selectedTextReader.captureSourceProcessIdentifier()
+
+        viewModel.prepare(selectedText: nil)
+        resize(for: .idle, animated: false)
+        panel.center()
+        panel.orderFrontRegardless()
 
         selectionReadTask = Task { [weak self] in
             guard let self else { return }
-            let selectedText = await selectedTextReader.readSelectedText(promptIfNeeded: true)
+            let selectedText = await selectedTextReader.readSelectedText(
+                from: sourceProcessIdentifier,
+                promptIfNeeded: true
+            )
             guard !Task.isCancelled,
                   selectionReadGeneration == generation else { return }
 
             selectionReadTask = nil
             viewModel.prepare(selectedText: selectedText)
-            resize(for: .idle, animated: false)
-            panel.center()
             panel.makeKeyAndOrderFront(nil)
 
             await Task.yield()

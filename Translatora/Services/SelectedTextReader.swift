@@ -19,16 +19,24 @@ final class SelectedTextReader {
         return AXIsProcessTrustedWithOptions(options)
     }
 
-    func readSelectedText(promptIfNeeded: Bool = true) async -> String? {
+    func captureSourceProcessIdentifier() -> pid_t? {
+        guard let frontmostApplication = NSWorkspace.shared.frontmostApplication,
+              frontmostApplication.bundleIdentifier != Bundle.main.bundleIdentifier else {
+            return nil
+        }
+        return frontmostApplication.processIdentifier
+    }
+
+    func readSelectedText(
+        from processIdentifier: pid_t?,
+        promptIfNeeded: Bool = true
+    ) async -> String? {
         let trusted = promptIfNeeded
             ? requestAccessibilityAccess()
             : isAccessibilityTrusted
         guard trusted else { return nil }
 
-        guard let frontmostApplication = NSWorkspace.shared.frontmostApplication,
-              frontmostApplication.bundleIdentifier != Bundle.main.bundleIdentifier else {
-            return nil
-        }
+        guard let processIdentifier else { return nil }
 
         let pasteboard = NSPasteboard.general
         let snapshot = PasteboardSnapshot(pasteboard: pasteboard)
@@ -41,7 +49,7 @@ final class SelectedTextReader {
         pasteboard.setString(probe, forType: probeType)
         let probeChangeCount = pasteboard.changeCount
 
-        guard postCopyShortcut(to: frontmostApplication.processIdentifier) else {
+        guard postCopyShortcut(to: processIdentifier) else {
             snapshot.restore(to: pasteboard)
             return nil
         }
