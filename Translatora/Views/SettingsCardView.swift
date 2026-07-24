@@ -30,7 +30,7 @@ struct SettingsCardView: View {
                 selectedTextReader: selectedTextReader
             )
         }
-        .background(.ultraThinMaterial)
+        .background(AppTheme.windowSurface)
     }
 
     private var header: some View {
@@ -51,8 +51,7 @@ struct SettingsCardView: View {
                     .frame(width: 22, height: 22)
                     .foregroundStyle(.primary)
             }
-            .buttonStyle(.glass(.regular.interactive()))
-            .buttonBorderShape(.circle)
+            .buttonStyle(AppIconButtonStyle())
             .keyboardShortcut(.cancelAction)
             .help("关闭设置")
         }

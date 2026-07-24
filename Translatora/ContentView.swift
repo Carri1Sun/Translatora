@@ -94,8 +94,7 @@ struct DictionaryHomeView: View {
                 Image(systemName: "gearshape")
                     .frame(width: 22, height: 22)
             }
-            .buttonStyle(.glass(.regular.interactive()))
-            .buttonBorderShape(.circle)
+            .buttonStyle(AppIconButtonStyle())
             .help("设置")
         }
         .padding(.horizontal, 30)
@@ -157,7 +156,11 @@ struct DictionaryHomeView: View {
                     .font(.system(size: 42, weight: .light))
                     .foregroundStyle(AppTheme.accentDeep)
             }
-            .glassEffect(.regular, in: .circle)
+            .overlay {
+                Circle()
+                    .stroke(AppTheme.accentDeep.opacity(0.14), lineWidth: 1)
+            }
+            .shadow(color: AppTheme.accentDeep.opacity(0.08), radius: 12, y: 4)
 
             VStack(spacing: 7) {
                 Text("词典还是空的")
@@ -184,7 +187,7 @@ struct DictionaryHomeView: View {
         ZStack {
             Color(nsColor: .windowBackgroundColor)
             RadialGradient(
-                colors: [AppTheme.accent.opacity(0.13), .clear],
+                colors: [AppTheme.accent.opacity(0.07), .clear],
                 center: .topTrailing,
                 startRadius: 40,
                 endRadius: 560
@@ -370,6 +373,7 @@ private struct DictionaryCardView: View {
     let entry: DictionaryEntry
     let onOpen: () -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
     @State private var isHovering = false
 
     var body: some View {
@@ -412,9 +416,10 @@ private struct DictionaryCardView: View {
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
-        .background(.ultraThinMaterial, in: .rect(cornerRadius: 14))
         .background(
-            isHovering ? AppTheme.accent.opacity(0.08) : .primary.opacity(0.025),
+            isHovering
+                ? AppTheme.accent.opacity(colorScheme == .dark ? 0.11 : 0.08)
+                : AppTheme.raisedSurface,
             in: .rect(cornerRadius: 14)
         )
         .overlay {

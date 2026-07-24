@@ -291,6 +291,8 @@ private final class SavedEntryToastController {
 private struct SavedEntryToastView: View {
     let onView: () -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
         Button(action: onView) {
             HStack(spacing: 10) {
@@ -306,7 +308,16 @@ private struct SavedEntryToastView: View {
             .padding(.horizontal, 16)
             .frame(width: 200, height: 58)
             .contentShape(.rect)
-            .background(.ultraThinMaterial, in: .rect(cornerRadius: 16))
+            .background {
+                ZStack {
+                    GaussianBlurBackground(
+                        material: .hudWindow,
+                        blendingMode: .behindWindow
+                    )
+                    AppTheme.panelTint(for: colorScheme)
+                }
+                .clipShape(.rect(cornerRadius: 16))
+            }
             .overlay {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .stroke(.primary.opacity(0.1), lineWidth: 1)

@@ -11,15 +11,13 @@ struct TranslationPanelView: View {
     @FocusState private var inputFocused: Bool
 
     var body: some View {
-        GlassEffectContainer(spacing: 16) {
-            VStack(spacing: 18) {
-                header
-                languageBar
-                inputArea
-                phaseContent
-            }
-            .padding(24)
+        VStack(spacing: 18) {
+            header
+            languageBar
+            inputArea
+            phaseContent
         }
+        .padding(24)
         .frame(width: 640)
         .frame(maxHeight: .infinity, alignment: .top)
         .background(panelBackground)
@@ -66,15 +64,18 @@ struct TranslationPanelView: View {
                 .foregroundStyle(mutedColor)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
-                .glassEffect(.regular, in: .rect(cornerRadius: 8))
+                .background(.primary.opacity(0.055), in: .rect(cornerRadius: 8))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .stroke(.primary.opacity(0.08), lineWidth: 1)
+                }
 
             Button(action: onClose) {
                 Image(systemName: "xmark")
                     .frame(width: 20, height: 20)
                     .foregroundStyle(.primary)
             }
-            .buttonStyle(.glass(.regular.interactive()))
-            .buttonBorderShape(.circle)
+            .buttonStyle(AppIconButtonStyle())
             .help("关闭 (Esc)")
         }
     }
@@ -89,10 +90,8 @@ struct TranslationPanelView: View {
                 Image(systemName: "arrow.left.arrow.right")
                     .frame(width: 24, height: 24)
                     .foregroundStyle(.primary)
-                    .padding(6)
-                    .glassEffect(.regular.interactive(), in: .circle)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppIconButtonStyle())
             .disabled(viewModel.phase == .loading)
             .help("交换语言")
 
@@ -131,18 +130,23 @@ struct TranslationPanelView: View {
                 Image(systemName: "arrow.up")
                     .font(.system(size: 16, weight: .bold))
                     .frame(width: 26, height: 26)
-                    .foregroundStyle(AppTheme.ink)
-                    .padding(7)
-                    .background(AppTheme.accent, in: .circle)
-                    .glassEffect(.regular.interactive(), in: .circle)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(AppAccentCircleButtonStyle())
             .disabled(!viewModel.canTranslate)
             .keyboardShortcut(.return, modifiers: [])
             .help("翻译 (Return)")
         }
         .padding(16)
-        .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 18))
+        .background(AppTheme.raisedSurface, in: .rect(cornerRadius: 16))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(
+                    inputFocused
+                        ? AppTheme.accentDeep.opacity(0.5)
+                        : Color.primary.opacity(0.1),
+                    lineWidth: inputFocused ? 1.5 : 1
+                )
+        }
     }
 
     @ViewBuilder
@@ -189,7 +193,11 @@ struct TranslationPanelView: View {
             Spacer()
         }
         .padding(16)
-        .glassEffect(.regular.tint(AppTheme.accent.opacity(0.14)), in: .rect(cornerRadius: 16))
+        .background(AppTheme.accent.opacity(0.1), in: .rect(cornerRadius: 16))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(AppTheme.accentDeep.opacity(0.14), lineWidth: 1)
+        }
     }
 
     private func resultView(_ result: TranslationResult) -> some View {
@@ -245,13 +253,8 @@ struct TranslationPanelView: View {
                             viewModel.isSaved ? "已保存到词典" : "保存到词典",
                             systemImage: viewModel.isSaved ? "checkmark" : "bookmark"
                         )
-                        .foregroundStyle(AppTheme.ink)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 9)
-                        .background(AppTheme.accent, in: .capsule)
-                        .glassEffect(.regular.interactive(), in: .capsule)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(AppAccentCapsuleButtonStyle())
                     .disabled(viewModel.isSaved)
                     .help(saveButtonHelp)
                 }
@@ -259,7 +262,11 @@ struct TranslationPanelView: View {
             .padding(18)
         }
         .scrollIndicators(.automatic)
-        .glassEffect(.regular, in: .rect(cornerRadius: 20))
+        .background(AppTheme.raisedSurface, in: .rect(cornerRadius: 18))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(.primary.opacity(0.1), lineWidth: 1)
+        }
     }
 
     private func failureView(_ message: String) -> some View {
@@ -274,18 +281,25 @@ struct TranslationPanelView: View {
             Button("重试") {
                 viewModel.translate()
             }
-            .buttonStyle(.glass)
+            .buttonStyle(AppButtonStyle())
         }
         .padding(16)
-        .glassEffect(.regular, in: .rect(cornerRadius: 16))
+        .background(AppTheme.raisedSurface, in: .rect(cornerRadius: 16))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(.primary.opacity(0.1), lineWidth: 1)
+        }
     }
 
     private var panelBackground: some View {
         ZStack {
-            Rectangle()
-                .fill(.ultraThinMaterial)
+            GaussianBlurBackground(
+                material: .hudWindow,
+                blendingMode: .behindWindow
+            )
+            AppTheme.panelTint(for: colorScheme)
             RadialGradient(
-                colors: [AppTheme.accent.opacity(0.17), .clear],
+                colors: [AppTheme.accent.opacity(0.07), .clear],
                 center: .topLeading,
                 startRadius: 10,
                 endRadius: 430

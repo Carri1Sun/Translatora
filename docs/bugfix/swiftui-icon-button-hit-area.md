@@ -2,13 +2,13 @@
 
 ## 问题
 
-图标按钮容易写成“外层控件使用纯文本样式，内层 `Image` 自己负责尺寸、内边距和交互玻璃效果”的结构：
+图标按钮容易写成“外层控件使用纯文本样式，内层 `Image` 自己负责尺寸、内边距和交互背景”的结构：
 
 ```swift
 Button(action: action) {
     Image(systemName: "xmark")
         .padding(6)
-        .glassEffect(.regular.interactive(), in: .circle)
+        .background(.primary.opacity(0.08), in: .rect(cornerRadius: 9))
 }
 .buttonStyle(.plain)
 ```
@@ -17,19 +17,18 @@ Button(action: action) {
 
 ## 修复方式
 
-让标签只描述图标内容，并直接使用系统提供的按钮样式。按钮的命中区域、按压反馈和玻璃效果都应由 `ButtonStyle` 管理：
+让标签只描述图标内容，并使用项目统一的按钮样式。按钮的命中区域、按压反馈、边框和背景都应由 `ButtonStyle` 管理：
 
 ```swift
 Button(action: action) {
     Image(systemName: "xmark")
         .frame(width: 20, height: 20)
 }
-.buttonStyle(.glass(.regular.interactive()))
-.buttonBorderShape(.circle)
+.buttonStyle(AppIconButtonStyle())
 .help("关闭")
 ```
 
-不要先用 `.plain` 清除按钮样式，再通过外层 `.frame`、`.contentShape` 和 `.glassEffect` 手动模拟按钮。外层视图尺寸不一定会扩大 `.plain` 按钮内部标签的命中区域，也会绕过系统按钮对键盘焦点和按压状态的管理。
+不要先用 `.plain` 清除按钮样式，再通过外层 `.frame`、`.contentShape` 和普通背景修饰符手动模拟按钮。外层视图尺寸不一定会扩大 `.plain` 按钮内部标签的命中区域，也会绕过系统按钮对键盘焦点和按压状态的管理。
 
 如果系统样式不能满足视觉要求，应实现自定义 `ButtonStyle`，而不是把交互效果直接放在 `Image` 或普通 View 修饰符上。修改后还需要分别检查浅色和深色界面的图标对比度。
 

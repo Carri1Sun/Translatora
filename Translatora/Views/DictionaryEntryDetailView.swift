@@ -92,21 +92,19 @@ struct DictionaryEntryDetailView: View {
                 setEditing(true)
             } label: {
                 Label("编辑", systemImage: "square.and.pencil")
-                    .padding(.horizontal, 4)
             }
-            .buttonStyle(.glass(.regular.tint(AppTheme.accent.opacity(0.6)).interactive()))
+            .buttonStyle(AppButtonStyle())
 
             Button(action: onClose) {
                 Image(systemName: "xmark")
                     .frame(width: 20, height: 20)
             }
-            .buttonStyle(.glass(.regular.interactive()))
-            .buttonBorderShape(.circle)
+            .buttonStyle(AppIconButtonStyle(scalesWhenPressed: false))
             .help("关闭")
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 18)
-        .background(.ultraThinMaterial)
+        .background(AppTheme.windowSurface)
         .overlay(alignment: .bottom) {
             Rectangle()
                 .fill(.primary.opacity(0.07))
@@ -210,7 +208,7 @@ struct DictionaryEntryDetailView: View {
                 Label("上一条", systemImage: "chevron.left")
                     .frame(minWidth: 82)
             }
-            .buttonStyle(.glass)
+            .buttonStyle(AppButtonStyle())
             .disabled(!canGoPrevious)
 
             Spacer()
@@ -226,12 +224,12 @@ struct DictionaryEntryDetailView: View {
                     .labelStyle(.titleAndIcon)
                     .frame(minWidth: 82)
             }
-            .buttonStyle(.glass)
+            .buttonStyle(AppButtonStyle())
             .disabled(!canGoNext)
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 16)
-        .background(.ultraThinMaterial)
+        .background(AppTheme.windowSurface)
         .overlay(alignment: .top) {
             Rectangle()
                 .fill(.primary.opacity(0.07))
@@ -281,8 +279,11 @@ struct DictionaryEntryDetailView: View {
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .glassEffect(.regular, in: .rect(cornerRadius: 18))
-        .background(.primary.opacity(0.02), in: .rect(cornerRadius: 18))
+        .background(AppTheme.raisedSurface, in: .rect(cornerRadius: 18))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(.primary.opacity(0.09), lineWidth: 1)
+        }
     }
 
     private func setEditing(_ editing: Bool) {
@@ -361,8 +362,7 @@ private struct DictionaryEntryEditorView: View {
                 Image(systemName: "chevron.left")
                     .frame(width: 20, height: 20)
             }
-            .buttonStyle(.glass(.regular.interactive()))
-            .buttonBorderShape(.circle)
+            .buttonStyle(AppIconButtonStyle())
             .help("返回详情")
 
             VStack(alignment: .leading, spacing: 2) {
@@ -377,7 +377,7 @@ private struct DictionaryEntryEditorView: View {
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 18)
-        .background(.ultraThinMaterial)
+        .background(AppTheme.windowSurface)
         .overlay(alignment: .bottom) {
             Rectangle()
                 .fill(.primary.opacity(0.07))
@@ -424,7 +424,7 @@ private struct DictionaryEntryEditorView: View {
                 } label: {
                     Label("添加例句", systemImage: "plus")
                 }
-                .buttonStyle(.glass)
+                .buttonStyle(AppButtonStyle())
             }
 
             if draft.examples.isEmpty {
@@ -454,7 +454,11 @@ private struct DictionaryEntryEditorView: View {
                         compactEditorField(title: "译文", text: $example.translation)
                     }
                     .padding(14)
-                    .glassEffect(.regular, in: .rect(cornerRadius: 16))
+                    .background(AppTheme.raisedSurface, in: .rect(cornerRadius: 16))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(.primary.opacity(0.09), lineWidth: 1)
+                    }
                 }
             }
         }
@@ -495,13 +499,13 @@ private struct DictionaryEntryEditorView: View {
             Button("保存") {
                 onSave(draft)
             }
-            .buttonStyle(.glass(.regular.tint(AppTheme.accent).interactive()))
+            .buttonStyle(AppButtonStyle(isProminent: true))
             .keyboardShortcut(.defaultAction)
             .disabled(!canSave)
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 16)
-        .background(.ultraThinMaterial)
+        .background(AppTheme.windowSurface)
         .overlay(alignment: .top) {
             Rectangle()
                 .fill(.primary.opacity(0.07))
@@ -548,7 +552,11 @@ private struct DictionaryEntryEditorView: View {
             }
             .padding(8)
             .frame(minHeight: minHeight)
-            .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 14))
+            .background(AppTheme.raisedSurface, in: .rect(cornerRadius: 14))
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(.primary.opacity(0.1), lineWidth: 1)
+            }
         }
     }
 
