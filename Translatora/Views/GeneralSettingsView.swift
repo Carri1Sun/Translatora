@@ -1,16 +1,6 @@
 import SwiftUI
 
-struct DeepSeekSettingsView: View {
-    private enum Feedback: Equatable {
-        case none
-        case saved
-        case testing
-        case connected
-        case failed(String)
-    }
-
-    @ObservedObject var configurationStore: ConfigurationStore
-    let modelProvider: ModelProvider
+struct GeneralSettingsView: View {
     @ObservedObject var appearanceStore: AppearanceStore
     @ObservedObject var menuBarStore: MenuBarStore
     @ObservedObject var shortcutStore: ShortcutStore
@@ -19,9 +9,6 @@ struct DeepSeekSettingsView: View {
     let updateSaveShortcut: (GlobalShortcut?) -> Bool
     let selectedTextReader: SelectedTextReader
 
-    @State private var apiKey = ""
-    @State private var selectedModel = DeepSeekModel.v4Flash
-    @State private var feedback = Feedback.none
     @State private var isAccessibilityTrusted = false
     @State private var shortcutValidationError: String?
 
@@ -36,7 +23,7 @@ struct DeepSeekSettingsView: View {
                 }
                 .pickerStyle(.segmented)
 
-                Text("翻译面板和词典会同步使用所选外观。")
+                Text("翻译浮窗和词汇列表会同步使用所选外观。")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -75,41 +62,6 @@ struct DeepSeekSettingsView: View {
                 }
             }
 
-            Section("DeepSeek API") {
-                SecureField("API Key", text: $apiKey)
-                    .textFieldStyle(.roundedBorder)
-
-                Picker("模型", selection: $selectedModel) {
-                    ForEach(DeepSeekModel.allCases) { model in
-                        Text(model.displayName).tag(model)
-                    }
-                }
-
-                Text(selectedModel.summary)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section {
-                HStack {
-                    feedbackView
-
-                    Spacer()
-
-                    Button("测试连接") {
-                        testConnection()
-                    }
-                    .disabled(isTesting || normalizedAPIKey.isEmpty)
-
-                    Button("保存") {
-                        save()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(AppTheme.accentDeep)
-                    .disabled(isTesting)
-                }
-            }
-
             Section("选中文本") {
                 HStack {
                     Label(
@@ -141,41 +93,7 @@ struct DeepSeekSettingsView: View {
         .formStyle(.grouped)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .preferredColorScheme(appearanceStore.appearance.colorScheme)
-        .onAppear {
-            loadSavedConfiguration()
-            refreshAccessibilityStatus()
-        }
-        .onChange(of: apiKey) { _, _ in clearFeedbackAfterEditing() }
-        .onChange(of: selectedModel) { _, _ in clearFeedbackAfterEditing() }
-    }
-
-    @ViewBuilder
-    private var feedbackView: some View {
-        switch feedback {
-        case .none:
-            EmptyView()
-        case .saved:
-            Label("已保存", systemImage: "checkmark.circle.fill")
-                .foregroundStyle(.green)
-        case .testing:
-            HStack(spacing: 8) {
-                ProgressView()
-                    .controlSize(.small)
-                Text("正在测试…")
-            }
-            .foregroundStyle(.secondary)
-        case .connected:
-            Label("连接成功", systemImage: "checkmark.circle.fill")
-                .foregroundStyle(.green)
-        case let .failed(message):
-            Label(message, systemImage: "exclamationmark.triangle.fill")
-                .foregroundStyle(.red)
-                .lineLimit(2)
-        }
-    }
-
-    private var normalizedAPIKey: String {
-        apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        .onAppear(perform: refreshAccessibilityStatus)
     }
 
     private var appearanceBinding: Binding<AppAppearance> {
@@ -190,14 +108,6 @@ struct DeepSeekSettingsView: View {
             get: { menuBarStore.isVisible },
             set: menuBarStore.setVisible
         )
-    }
-
-    private var isTesting: Bool {
-        feedback == .testing
-    }
-
-    private var draftConfiguration: DeepSeekConfiguration {
-        DeepSeekConfiguration(apiKey: apiKey, model: selectedModel).normalized
     }
 
     private var accessibilityDescription: String {
@@ -237,38 +147,6 @@ struct DeepSeekSettingsView: View {
         }
     }
 
-    private func loadSavedConfiguration() {
-        let configuration = configurationStore.deepSeekConfiguration
-        apiKey = configuration.apiKey
-        selectedModel = configuration.model
-        feedback = .none
-    }
-
-    private func save() {
-        configurationStore.saveDeepSeekConfiguration(draftConfiguration)
-        apiKey = normalizedAPIKey
-        feedback = .saved
-    }
-
-    private func testConnection() {
-        let configuration = draftConfiguration
-        feedback = .testing
-
-        Task {
-            do {
-                try await modelProvider.testConnection(using: configuration)
-                feedback = .connected
-            } catch {
-                feedback = .failed(error.localizedDescription)
-            }
-        }
-    }
-
-    private func clearFeedbackAfterEditing() {
-        guard feedback != .testing else { return }
-        feedback = .none
-    }
-
     private func requestAccessibilityAccess() {
         isAccessibilityTrusted = selectedTextReader.requestAccessibilityAccess()
         if !isAccessibilityTrusted {
@@ -292,10 +170,7 @@ struct DeepSeekSettingsView: View {
 }
 
 #Preview {
-    let store = ConfigurationStore()
-    DeepSeekSettingsView(
-        configurationStore: store,
-        modelProvider: ModelProvider(configurationStore: store),
+    GeneralSettingsView(
         appearanceStore: AppearanceStore(),
         menuBarStore: MenuBarStore(),
         shortcutStore: ShortcutStore(),

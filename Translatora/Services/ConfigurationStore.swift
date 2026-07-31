@@ -3,11 +3,16 @@ import Foundation
 
 @MainActor
 final class ConfigurationStore: ObservableObject {
+    @Published private(set) var selectedProvider: ModelProviderKind
     @Published private(set) var deepSeekConfiguration: DeepSeekConfiguration
+    @Published private(set) var miniMaxConfiguration: MiniMaxConfiguration
 
     private enum Keys {
+        static let selectedProvider = "modelProvider.selected"
         static let deepSeekAPIKey = "deepseek.apiKey"
         static let deepSeekModel = "deepseek.model"
+        static let miniMaxAPIKey = "minimax.apiKey"
+        static let miniMaxModel = "minimax.model"
     }
 
     private let defaults: UserDefaults
@@ -26,7 +31,14 @@ final class ConfigurationStore: ObservableObject {
             ?? legacyConfiguration?.model.rawValue)
             .flatMap(DeepSeekModel.init(rawValue:)) ?? .v4Flash
 
+        selectedProvider = defaults.string(forKey: Keys.selectedProvider)
+            .flatMap(ModelProviderKind.init(rawValue:)) ?? .deepSeek
         deepSeekConfiguration = DeepSeekConfiguration(apiKey: apiKey, model: model)
+        miniMaxConfiguration = MiniMaxConfiguration(
+            apiKey: defaults.string(forKey: Keys.miniMaxAPIKey) ?? "",
+            model: defaults.string(forKey: Keys.miniMaxModel)
+                .flatMap(MiniMaxModel.init(rawValue:)) ?? .m3
+        )
 
         if defaults.string(forKey: Keys.deepSeekAPIKey) == nil,
            let legacyConfiguration {
@@ -42,6 +54,20 @@ final class ConfigurationStore: ObservableObject {
         defaults.set(configuration.apiKey, forKey: Keys.deepSeekAPIKey)
         defaults.set(configuration.model.rawValue, forKey: Keys.deepSeekModel)
         deepSeekConfiguration = configuration
+    }
+
+    func saveMiniMaxConfiguration(_ configuration: MiniMaxConfiguration) {
+        let configuration = configuration.normalized
+
+        // TODO: 未来使用 Keychain 安全存储 API Key。
+        defaults.set(configuration.apiKey, forKey: Keys.miniMaxAPIKey)
+        defaults.set(configuration.model.rawValue, forKey: Keys.miniMaxModel)
+        miniMaxConfiguration = configuration
+    }
+
+    func selectProvider(_ provider: ModelProviderKind) {
+        defaults.set(provider.rawValue, forKey: Keys.selectedProvider)
+        selectedProvider = provider
     }
 
     private static func loadSandboxedConfigurationIfNeeded(

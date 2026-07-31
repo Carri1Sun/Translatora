@@ -1,20 +1,14 @@
 import Foundation
 
-protocol NetworkSession: Sendable {
-    func data(for request: URLRequest) async throws -> (Data, URLResponse)
-}
-
-extension URLSession: NetworkSession {}
-
-struct DeepSeekProvider: LLMProvider {
-    private let configuration: DeepSeekConfiguration
+struct MiniMaxProvider: LLMProvider {
+    private let configuration: MiniMaxConfiguration
     private let session: any NetworkSession
     private let baseURL: URL
 
     init(
-        configuration: DeepSeekConfiguration,
+        configuration: MiniMaxConfiguration,
         session: any NetworkSession = URLSession.shared,
-        baseURL: URL = URL(string: "https://api.deepseek.com")!
+        baseURL: URL = URL(string: "https://api.minimaxi.com/v1")!
     ) {
         self.configuration = configuration.normalized
         self.session = session
@@ -24,17 +18,26 @@ struct DeepSeekProvider: LLMProvider {
     func complete(_ request: LLMRequest) async throws -> LLMResponse {
         try validateConfiguration()
 
-        let body = ChatCompletionRequest(
+        let body = MiniMaxChatCompletionRequest(
             model: configuration.model.rawValue,
             messages: request.messages,
             temperature: request.temperature,
-            maxTokens: request.maxTokens
+            maxCompletionTokens: request.maxTokens,
+            reasoningSplit: true,
+            thinking: configuration.model == .m3 ? .disabled : nil
         )
-        let urlRequest = try makeRequest(path: "chat/completions", method: "POST", body: body)
+        let urlRequest = try makeRequest(
+            path: "chat/completions",
+            method: "POST",
+            body: body
+        )
         let data = try await send(urlRequest)
 
         guard
-            let response = try? JSONDecoder().decode(ChatCompletionResponse.self, from: data),
+            let response = try? JSONDecoder().decode(
+                MiniMaxChatCompletionResponse.self,
+                from: data
+            ),
             let content = response.choices.first?.message.content,
             !content.isEmpty
         else {
@@ -47,10 +50,13 @@ struct DeepSeekProvider: LLMProvider {
     func testConnection() async throws {
         try validateConfiguration()
 
-        let urlRequest = try makeRequest(path: "models", method: "GET")
+        let urlRequest = makeRequest(path: "models", method: "GET")
         let data = try await send(urlRequest)
 
-        guard let response = try? JSONDecoder().decode(ModelsResponse.self, from: data) else {
+        guard let response = try? JSONDecoder().decode(
+            MiniMaxModelsResponse.self,
+            from: data
+        ) else {
             throw LLMProviderError.invalidResponse
         }
 
@@ -61,7 +67,7 @@ struct DeepSeekProvider: LLMProvider {
 
     private func validateConfiguration() throws {
         guard !configuration.apiKey.isEmpty else {
-            throw LLMProviderError.missingAPIKey("DeepSeek")
+            throw LLMProviderError.missingAPIKey("MiniMax")
         }
     }
 
@@ -70,12 +76,12 @@ struct DeepSeekProvider: LLMProvider {
         method: String,
         body: Body
     ) throws -> URLRequest {
-        var request = try makeRequest(path: path, method: method)
+        var request = makeRequest(path: path, method: method)
         request.httpBody = try JSONEncoder().encode(body)
         return request
     }
 
-    private func makeRequest(path: String, method: String) throws -> URLRequest {
+    private func makeRequest(path: String, method: String) -> URLRequest {
         let url = baseURL.appending(path: path)
         var request = URLRequest(url: url)
         request.httpMethod = method
@@ -101,12 +107,16 @@ struct DeepSeekProvider: LLMProvider {
         }
 
         guard (200...299).contains(httpResponse.statusCode) else {
-            let apiError = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
-            let fallbackMessage = HTTPURLResponse.localizedString(forStatusCode: httpResponse.statusCode)
+            let apiError = try? JSONDecoder().decode(MiniMaxAPIErrorResponse.self, from: data)
+            let fallbackMessage = HTTPURLResponse.localizedString(
+                forStatusCode: httpResponse.statusCode
+            )
             throw LLMProviderError.api(
-                provider: "DeepSeek",
+                provider: "MiniMax",
                 statusCode: httpResponse.statusCode,
-                message: apiError?.error.message ?? fallbackMessage
+                message: apiError?.error?.message
+                    ?? apiError?.baseResponse?.statusMessage
+                    ?? fallbackMessage
             )
         }
 
@@ -114,21 +124,31 @@ struct DeepSeekProvider: LLMProvider {
     }
 }
 
-private struct ChatCompletionRequest: Encodable {
+private struct MiniMaxChatCompletionRequest: Encodable {
     let model: String
     let messages: [LLMMessage]
     let temperature: Double?
-    let maxTokens: Int?
+    let maxCompletionTokens: Int?
+    let reasoningSplit: Bool
+    let thinking: MiniMaxThinking?
 
     enum CodingKeys: String, CodingKey {
         case model
         case messages
         case temperature
-        case maxTokens = "max_tokens"
+        case maxCompletionTokens = "max_completion_tokens"
+        case reasoningSplit = "reasoning_split"
+        case thinking
     }
 }
 
-private struct ChatCompletionResponse: Decodable {
+private struct MiniMaxThinking: Encodable {
+    let type: String
+
+    static let disabled = MiniMaxThinking(type: "disabled")
+}
+
+private struct MiniMaxChatCompletionResponse: Decodable {
     struct Choice: Decodable {
         let message: LLMMessage
     }
@@ -137,7 +157,7 @@ private struct ChatCompletionResponse: Decodable {
     let choices: [Choice]
 }
 
-private struct ModelsResponse: Decodable {
+private struct MiniMaxModelsResponse: Decodable {
     struct Model: Decodable {
         let id: String
     }
@@ -145,10 +165,24 @@ private struct ModelsResponse: Decodable {
     let data: [Model]
 }
 
-private struct APIErrorResponse: Decodable {
+private struct MiniMaxAPIErrorResponse: Decodable {
     struct APIError: Decodable {
         let message: String
     }
 
-    let error: APIError
+    struct BaseResponse: Decodable {
+        let statusMessage: String
+
+        enum CodingKeys: String, CodingKey {
+            case statusMessage = "status_msg"
+        }
+    }
+
+    let error: APIError?
+    let baseResponse: BaseResponse?
+
+    enum CodingKeys: String, CodingKey {
+        case error
+        case baseResponse = "base_resp"
+    }
 }

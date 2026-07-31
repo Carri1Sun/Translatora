@@ -33,22 +33,22 @@ struct LLMResponse: Equatable, Sendable {
 }
 
 enum LLMProviderError: LocalizedError, Equatable {
-    case missingAPIKey
+    case missingAPIKey(String)
     case invalidResponse
     case modelUnavailable(String)
-    case api(statusCode: Int, message: String)
+    case api(provider: String, statusCode: Int, message: String)
     case transport(String)
 
     var errorDescription: String? {
         switch self {
-        case .missingAPIKey:
-            "请先输入 DeepSeek API Key"
+        case let .missingAPIKey(provider):
+            "请先输入 \(provider) API Key"
         case .invalidResponse:
             "服务返回了无法解析的数据"
         case let .modelUnavailable(model):
             "当前账号无法使用模型：\(model)"
-        case let .api(statusCode, message):
-            "DeepSeek 请求失败（\(statusCode)）：\(message)"
+        case let .api(provider, statusCode, message):
+            "\(provider) 请求失败（\(statusCode)）：\(message)"
         case let .transport(message):
             "网络连接失败：\(message)"
         }

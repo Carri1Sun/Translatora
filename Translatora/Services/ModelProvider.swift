@@ -19,7 +19,16 @@ final class ModelProvider: LLMCompleting {
         try await provider.testConnection()
     }
 
+    func testConnection(using configuration: MiniMaxConfiguration) async throws {
+        try await MiniMaxProvider(configuration: configuration).testConnection()
+    }
+
     private func currentProvider() -> any LLMProvider {
-        DeepSeekProvider(configuration: configurationStore.deepSeekConfiguration)
+        switch configurationStore.selectedProvider {
+        case .deepSeek:
+            DeepSeekProvider(configuration: configurationStore.deepSeekConfiguration)
+        case .miniMax:
+            MiniMaxProvider(configuration: configurationStore.miniMaxConfiguration)
+        }
     }
 }

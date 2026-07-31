@@ -1,6 +1,31 @@
 import SwiftUI
 
 struct SettingsCardView: View {
+    private enum Page: String, CaseIterable, Identifiable {
+        case general
+        case providers
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .general:
+                "通用设置"
+            case .providers:
+                "模型 Provider"
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .general:
+                "gearshape"
+            case .providers:
+                "cpu"
+            }
+        }
+    }
+
     @ObservedObject var configurationStore: ConfigurationStore
     let modelProvider: ModelProvider
     @ObservedObject var appearanceStore: AppearanceStore
@@ -12,15 +37,57 @@ struct SettingsCardView: View {
     let selectedTextReader: SelectedTextReader
     let onClose: () -> Void
 
+    @State private var selectedPage = Page.general
+
     var body: some View {
         VStack(spacing: 0) {
             header
 
             Divider()
 
-            DeepSeekSettingsView(
-                configurationStore: configurationStore,
-                modelProvider: modelProvider,
+            HStack(spacing: 0) {
+                navigation
+
+                Divider()
+
+                selectedPageView
+            }
+        }
+        .background(AppTheme.windowSurface)
+    }
+
+    private var navigation: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(Page.allCases) { page in
+                Button {
+                    selectedPage = page
+                } label: {
+                    Label(page.title, systemImage: page.icon)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 9)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(selectedPage == page ? AppTheme.accentDeep : .primary)
+                .background(
+                    selectedPage == page ? AppTheme.accent.opacity(0.16) : .clear,
+                    in: .rect(cornerRadius: 8)
+                )
+            }
+
+            Spacer()
+        }
+        .padding(12)
+        .frame(width: 164)
+        .background(.primary.opacity(0.025))
+    }
+
+    @ViewBuilder
+    private var selectedPageView: some View {
+        switch selectedPage {
+        case .general:
+            GeneralSettingsView(
                 appearanceStore: appearanceStore,
                 menuBarStore: menuBarStore,
                 shortcutStore: shortcutStore,
@@ -29,8 +96,12 @@ struct SettingsCardView: View {
                 updateSaveShortcut: updateSaveShortcut,
                 selectedTextReader: selectedTextReader
             )
+        case .providers:
+            ModelProviderSettingsView(
+                configurationStore: configurationStore,
+                modelProvider: modelProvider
+            )
         }
-        .background(AppTheme.windowSurface)
     }
 
     private var header: some View {
@@ -39,7 +110,7 @@ struct SettingsCardView: View {
                 Text("设置")
                     .font(.title2.weight(.bold))
 
-                Text("调整外观、菜单栏、快捷键与翻译服务。")
+                Text("调整通用偏好与翻译模型。")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

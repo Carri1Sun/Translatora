@@ -1,0 +1,67 @@
+import Foundation
+
+enum MiniMaxModel: String, CaseIterable, Codable, Identifiable, Sendable {
+    case m3 = "MiniMax-M3"
+    case m27 = "MiniMax-M2.7"
+    case m27Highspeed = "MiniMax-M2.7-highspeed"
+    case m25 = "MiniMax-M2.5"
+    case m25Highspeed = "MiniMax-M2.5-highspeed"
+    case m21 = "MiniMax-M2.1"
+    case m21Highspeed = "MiniMax-M2.1-highspeed"
+    case m2 = "MiniMax-M2"
+
+    var id: String { rawValue }
+
+    var displayName: String { rawValue }
+
+    var summary: String {
+        switch self {
+        case .m3:
+            "最新旗舰模型，适合翻译、复杂推理与长上下文任务"
+        case .m27:
+            "最新标准版模型，适用于 Token Plan 标准套餐"
+        case .m27Highspeed:
+            "与 M2.7 效果一致、输出更快，需要支持极速模型的套餐"
+        case .m25:
+            "兼顾复杂任务能力与性价比"
+        case .m25Highspeed:
+            "M2.5 的高速版本，需要支持极速模型的套餐"
+        case .m21:
+            "擅长多语言与编程任务"
+        case .m21Highspeed:
+            "M2.1 的高速版本"
+        case .m2:
+            "面向编码与 Agent 工作流的基础版本"
+        }
+    }
+}
+
+struct MiniMaxConfiguration: Equatable, Sendable {
+    var apiKey: String
+    var model: MiniMaxModel
+
+    static let empty = MiniMaxConfiguration(apiKey: "", model: .m3)
+
+    var normalized: MiniMaxConfiguration {
+        MiniMaxConfiguration(
+            apiKey: apiKey.trimmingCharacters(in: .whitespacesAndNewlines),
+            model: model
+        )
+    }
+}
+
+enum ModelProviderKind: String, CaseIterable, Codable, Identifiable, Sendable {
+    case deepSeek
+    case miniMax
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .deepSeek:
+            "DeepSeek"
+        case .miniMax:
+            "MiniMax（国内版）"
+        }
+    }
+}

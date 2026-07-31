@@ -333,7 +333,7 @@ struct DictionaryHomeView: View {
                     selectedTextReader: dependencies.selectedTextReader,
                     onClose: dependencies.dismissSettings
                 )
-                .frame(width: 600)
+                .frame(width: 760)
                 .frame(maxHeight: 620)
                 .clipShape(.rect(cornerRadius: 22))
                 .shadow(color: .black.opacity(0.22), radius: 20, y: 8)

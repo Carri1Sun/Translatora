@@ -185,7 +185,7 @@ struct TranslationPanelView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text("正在理解并翻译")
                     .font(.subheadline.weight(.medium))
-                Text("DeepSeek 正在组织自然的表达与例句…")
+                Text("模型正在组织自然的表达与例句…")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

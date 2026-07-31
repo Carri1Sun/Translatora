@@ -114,11 +114,11 @@ struct RenderingSmokeTests {
             onClose: {}
         )
         .preferredColorScheme(.light)
-        .frame(width: 600, height: 620)
+        .frame(width: 760, height: 620)
         .clipShape(.rect(cornerRadius: 22))
         .background(Color.white)
 
-        let pngData = try render(view, size: NSSize(width: 600, height: 620))
+        let pngData = try render(view, size: NSSize(width: 760, height: 620))
         #expect(pngData.count > 10_000)
         try pngData.write(to: URL(filePath: "/tmp/translatora-settings-render.png"), options: .atomic)
     }
