@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct ContentView: View {
     @EnvironmentObject private var dependencies: AppDependencies
@@ -20,6 +21,10 @@ struct DictionaryHomeView: View {
 
     @State private var selectedEntryID: UUID?
     @State private var operationErrorMessage: String?
+    @State private var transferResultMessage: String?
+    @State private var exportDocument: DictionaryArchiveDocument?
+    @State private var isImporting = false
+    @State private var isExporting = false
 
     var body: some View {
         ZStack {
@@ -61,6 +66,30 @@ struct DictionaryHomeView: View {
         } message: {
             Text(operationErrorMessage ?? "未知错误")
         }
+        .alert(
+            "词汇表",
+            isPresented: Binding(
+                get: { transferResultMessage != nil },
+                set: { if !$0 { transferResultMessage = nil } }
+            )
+        ) {
+            Button("好", role: .cancel) {}
+        } message: {
+            Text(transferResultMessage ?? "")
+        }
+        .fileImporter(
+            isPresented: $isImporting,
+            allowedContentTypes: [.json],
+            allowsMultipleSelection: false,
+            onCompletion: handleImport
+        )
+        .fileExporter(
+            isPresented: $isExporting,
+            document: exportDocument,
+            contentType: .json,
+            defaultFilename: "Translatora-词汇表备份",
+            onCompletion: handleExport
+        )
     }
 
     private var header: some View {
@@ -89,6 +118,25 @@ struct DictionaryHomeView: View {
                     .foregroundStyle(.orange)
                     .help(shortcutErrorMessage)
             }
+
+            Menu {
+                Button("导入词汇表…", systemImage: "square.and.arrow.down") {
+                    selectedEntryID = nil
+                    isImporting = true
+                }
+
+                Button("导出词汇表…", systemImage: "square.and.arrow.up") {
+                    prepareExport()
+                }
+                .disabled(dictionaryStore.entries.isEmpty)
+            } label: {
+                Image(systemName: "ellipsis")
+                    .frame(width: 22, height: 22)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("导入或导出词汇表")
 
             Button(action: showSettings) {
                 Image(systemName: "gearshape")
@@ -308,6 +356,60 @@ struct DictionaryHomeView: View {
         dependencies.presentSettings()
     }
 
+    private func prepareExport() {
+        do {
+            exportDocument = DictionaryArchiveDocument(data: try dictionaryStore.exportData())
+            isExporting = true
+        } catch {
+            operationErrorMessage = error.localizedDescription
+        }
+    }
+
+    private func handleExport(_ result: Result<URL, Error>) {
+        exportDocument = nil
+
+        switch result {
+        case .success:
+            transferResultMessage = "已导出 \(dictionaryStore.entries.count) 条词汇。"
+        case let .failure(error):
+            guard !isUserCancellation(error) else { return }
+            operationErrorMessage = "导出失败：\(error.localizedDescription)"
+        }
+    }
+
+    private func handleImport(_ result: Result<[URL], Error>) {
+        switch result {
+        case let .success(urls):
+            guard let url = urls.first else { return }
+            let hasSecurityScopedAccess = url.startAccessingSecurityScopedResource()
+            defer {
+                if hasSecurityScopedAccess {
+                    url.stopAccessingSecurityScopedResource()
+                }
+            }
+
+            do {
+                let summary = try dictionaryStore.importData(Data(contentsOf: url))
+                transferResultMessage = [
+                    "新增 \(summary.insertedCount) 条",
+                    "更新 \(summary.updatedCount) 条",
+                    "跳过 \(summary.skippedCount) 条重复或较旧记录"
+                ].joined(separator: "，") + "。"
+            } catch {
+                operationErrorMessage = "导入失败：\(error.localizedDescription)"
+            }
+        case let .failure(error):
+            guard !isUserCancellation(error) else { return }
+            operationErrorMessage = "导入失败：\(error.localizedDescription)"
+        }
+    }
+
+    private func isUserCancellation(_ error: Error) -> Bool {
+        let cocoaError = error as NSError
+        return cocoaError.domain == NSCocoaErrorDomain
+            && cocoaError.code == NSUserCancelledError
+    }
+
     private func presentRequestedDictionaryEntry() {
         guard let entryID = dependencies.requestedDictionaryEntryID,
               orderedEntries.contains(where: { $0.id == entryID }) else {
@@ -359,6 +461,27 @@ struct DictionaryHomeView: View {
             operationErrorMessage = error.localizedDescription
             return false
         }
+    }
+}
+
+private struct DictionaryArchiveDocument: FileDocument {
+    static let readableContentTypes: [UTType] = [.json]
+
+    let data: Data
+
+    init(data: Data) {
+        self.data = data
+    }
+
+    init(configuration: ReadConfiguration) throws {
+        guard let data = configuration.file.regularFileContents else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        self.data = data
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: data)
     }
 }
 

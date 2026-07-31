@@ -1,6 +1,6 @@
 import Foundation
 
-enum TranslationLanguage: String, CaseIterable, Codable, Identifiable, Sendable {
+enum TranslationLanguage: String, CaseIterable, Codable, Hashable, Identifiable, Sendable {
     case english
     case simplifiedChinese
     case traditionalChinese
@@ -87,5 +87,27 @@ struct DictionaryEntry: Codable, Equatable, Identifiable, Sendable {
         self.examples = examples
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        sourceText = try container.decode(String.self, forKey: .sourceText)
+        translatedText = try container.decode(String.self, forKey: .translatedText)
+        sourceLanguage = try container.decode(
+            TranslationLanguage.self,
+            forKey: .sourceLanguage
+        )
+        targetLanguage = try container.decode(
+            TranslationLanguage.self,
+            forKey: .targetLanguage
+        )
+        id = (try? container.decode(UUID.self, forKey: .id)) ?? UUID()
+        note = (try? container.decode(String.self, forKey: .note)) ?? ""
+        examples = (try? container.decode(
+            [TranslationExample].self,
+            forKey: .examples
+        )) ?? []
+        createdAt = (try? container.decode(Date.self, forKey: .createdAt)) ?? .distantPast
+        updatedAt = (try? container.decode(Date.self, forKey: .updatedAt)) ?? createdAt
     }
 }
