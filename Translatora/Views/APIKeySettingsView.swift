@@ -23,11 +23,9 @@ struct APIKeySettingsView: View {
     @State private var deepSeekModel = DeepSeekModel.v4Flash
     @State private var miniMaxAPIKey = ""
     @State private var miniMaxModel = MiniMaxModel.m3
-    @State private var miniMaxTTSVoice = MiniMaxTTSVoice.automatic
     @State private var qwenAPIKey = ""
     @State private var qwenModel = QwenModel.v38Max
     @State private var qwenRegion = QwenTokenPlanRegion.international
-    @State private var qwenTTSVoice = QwenTTSVoice.longXiaochun
     @State private var testingTarget: TestTarget?
     @State private var feedback: [TestTarget: Feedback] = [:]
     @State private var lastTestTarget: [TestTarget: TestTarget] = [:]
@@ -63,11 +61,9 @@ struct APIKeySettingsView: View {
         .onChange(of: deepSeekModel) { _, _ in didSave = false }
         .onChange(of: miniMaxAPIKey) { _, _ in didSave = false }
         .onChange(of: miniMaxModel) { _, _ in didSave = false }
-        .onChange(of: miniMaxTTSVoice) { _, _ in didSave = false }
         .onChange(of: qwenAPIKey) { _, _ in didSave = false }
         .onChange(of: qwenModel) { _, _ in didSave = false }
         .onChange(of: qwenRegion) { _, _ in didSave = false }
-        .onChange(of: qwenTTSVoice) { _, _ in didSave = false }
     }
 
     private var deepSeekSection: some View {
@@ -106,13 +102,12 @@ struct APIKeySettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            Picker("朗读音色", selection: $miniMaxTTSVoice) {
-                ForEach(MiniMaxTTSVoice.allCases) { voice in
-                    Text(voice.displayName).tag(voice)
-                }
-            }
+            LabeledContent(
+                "当前朗读音色",
+                value: configurationStore.miniMaxConfiguration.ttsVoice.displayName
+            )
 
-            Text("朗读模型固定使用 speech-2.8-hd。切换音色后，清理语音缓存即可重新生成已朗读过的词条。")
+            Text("朗读模型固定使用 speech-2.8-hd；音色请在 Provider 页面选择并保存。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -149,13 +144,12 @@ struct APIKeySettingsView: View {
                 }
             }
 
-            Picker("朗读音色", selection: $qwenTTSVoice) {
-                ForEach(QwenTTSVoice.allCases) { voice in
-                    Text(voice.displayName).tag(voice)
-                }
-            }
+            LabeledContent(
+                "当前朗读音色",
+                value: configurationStore.qwenConfiguration.ttsVoice.displayName
+            )
 
-            Text("朗读模型固定使用 qwen-audio-3.0-tts-plus，并通过 Token Plan 新加坡 WebSocket 接入。切换音色后，清理语音缓存即可重新生成已朗读过的词条。")
+            Text("朗读模型固定使用 qwen-audio-3.0-tts-plus，并通过 Token Plan 新加坡 WebSocket 接入；音色请在 Provider 页面选择并保存。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -232,7 +226,7 @@ struct APIKeySettingsView: View {
         MiniMaxConfiguration(
             apiKey: miniMaxAPIKey,
             model: miniMaxModel,
-            ttsVoice: miniMaxTTSVoice
+            ttsVoice: configurationStore.miniMaxConfiguration.ttsVoice
         ).normalized
     }
 
@@ -241,7 +235,7 @@ struct APIKeySettingsView: View {
             apiKey: qwenAPIKey,
             model: qwenModel,
             region: qwenRegion,
-            ttsVoice: qwenTTSVoice
+            ttsVoice: configurationStore.qwenConfiguration.ttsVoice
         ).normalized
     }
 
@@ -253,13 +247,11 @@ struct APIKeySettingsView: View {
         let miniMax = configurationStore.miniMaxConfiguration
         miniMaxAPIKey = miniMax.apiKey
         miniMaxModel = miniMax.model
-        miniMaxTTSVoice = miniMax.ttsVoice
 
         let qwen = configurationStore.qwenConfiguration
         qwenAPIKey = qwen.apiKey
         qwenModel = qwen.model
         qwenRegion = qwen.region
-        qwenTTSVoice = qwen.ttsVoice
 
         testingTarget = nil
         feedback = [:]
