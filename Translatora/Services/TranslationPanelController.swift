@@ -15,11 +15,13 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
     private let savedToastController = SavedEntryToastController()
     private var phaseCancellable: AnyCancellable?
     private var appearanceCancellable: AnyCancellable?
+    private var phaseUpdateTask: Task<Void, Never>?
     private var selectionReadTask: Task<Void, Never>?
     private var moveSettlementTask: Task<Void, Never>?
     private var selectionReadGeneration = 0
     private var isApplyingFrame = false
     private var isUserSized = false
+    private var isResizeEnabled = false
 
     init(
         translationService: TranslationService,
@@ -40,7 +42,13 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
         self.placementStore = placementStore ?? TranslationPanelPlacementStore()
         panel = TranslationPanel(
             contentRect: NSRect(origin: .zero, size: Self.defaultSize),
-            styleMask: [.titled, .closable, .fullSizeContentView, .nonactivatingPanel],
+            styleMask: [
+                .titled,
+                .closable,
+                .resizable,
+                .fullSizeContentView,
+                .nonactivatingPanel
+            ],
             backing: .buffered,
             defer: false
         )
@@ -121,9 +129,16 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
     }
 
     func windowDidEndLiveResize(_ notification: Notification) {
-        guard !isApplyingFrame else { return }
+        guard isResizeEnabled, !isApplyingFrame else { return }
         isUserSized = true
         constrainAndPersist(animate: true)
+    }
+
+    func windowWillResize(
+        _ sender: NSWindow,
+        to frameSize: NSSize
+    ) -> NSSize {
+        isResizeEnabled ? frameSize : sender.frame.size
     }
 
     func windowDidChangeScreen(_ notification: Notification) {
@@ -167,8 +182,15 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
             .removeDuplicates()
             .dropFirst()
             .sink { [weak self] phase in
-                self?.updateResizable(for: phase)
-                self?.resize(for: phase, animated: true)
+                self?.phaseUpdateTask?.cancel()
+                self?.phaseUpdateTask = Task { [weak self] in
+                    await Task.yield()
+                    guard !Task.isCancelled,
+                          let self,
+                          self.viewModel.phase == phase else { return }
+                    self.updateResizable(for: phase)
+                    self.resize(for: phase, animated: true)
+                }
             }
     }
 
@@ -257,11 +279,8 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
     }
 
     private func updateResizable(for phase: TranslationPhase) {
-        if case .result = phase {
-            panel.styleMask.insert(.resizable)
-        } else {
-            panel.styleMask.remove(.resizable)
-        }
+        isResizeEnabled = phase.allowsPanelResize
+        panel.standardWindowButton(.zoomButton)?.isEnabled = isResizeEnabled
         updateResizeLimits()
     }
 

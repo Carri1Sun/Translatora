@@ -5,6 +5,16 @@ import Testing
 @MainActor
 struct TranslationPanelViewModelTests {
     @Test
+    func onlyAllowsPanelResizeForCompletedResults() {
+        let result = TranslationResult(translation: "你好", examples: [])
+
+        #expect(!TranslationPhase.idle.allowsPanelResize)
+        #expect(!TranslationPhase.loading.allowsPanelResize)
+        #expect(!TranslationPhase.failure("失败").allowsPanelResize)
+        #expect(TranslationPhase.result(result).allowsPanelResize)
+    }
+
+    @Test
     func automaticallyTranslatesSelectionButOnlySavesOnRequest() async throws {
         let dictionaryURL = FileManager.default.temporaryDirectory
             .appending(path: "TranslatoraPanelTests-\(UUID().uuidString).json")

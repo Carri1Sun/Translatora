@@ -8,6 +8,13 @@ enum TranslationPhase: Equatable {
     case failure(String)
 }
 
+extension TranslationPhase {
+    var allowsPanelResize: Bool {
+        if case .result = self { return true }
+        return false
+    }
+}
+
 @MainActor
 final class TranslationPanelViewModel: ObservableObject {
     @Published var inputText = ""
