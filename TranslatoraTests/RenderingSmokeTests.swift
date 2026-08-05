@@ -100,6 +100,14 @@ struct RenderingSmokeTests {
         let suiteName = "TranslatoraRender.Settings.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         let configurationStore = ConfigurationStore(defaults: defaults)
+        configurationStore.saveQwenConfiguration(
+            QwenConfiguration(
+                apiKey: "render-token-plan-key",
+                model: .v38Max,
+                region: .international
+            )
+        )
+        configurationStore.selectProvider(.qwen)
 
         let view = SettingsCardView(
             configurationStore: configurationStore,
@@ -121,6 +129,36 @@ struct RenderingSmokeTests {
         let pngData = try render(view, size: NSSize(width: 760, height: 620))
         #expect(pngData.count > 10_000)
         try pngData.write(to: URL(filePath: "/tmp/translatora-settings-render.png"), options: .atomic)
+    }
+
+    @Test
+    func rendersQwenProviderSettings() throws {
+        let suiteName = "TranslatoraRender.QwenSettings.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        let configurationStore = ConfigurationStore(defaults: defaults)
+        configurationStore.saveQwenConfiguration(
+            QwenConfiguration(
+                apiKey: "render-token-plan-key",
+                model: .v38Max,
+                region: .international
+            )
+        )
+        configurationStore.selectProvider(.qwen)
+
+        let view = ModelProviderSettingsView(
+            configurationStore: configurationStore,
+            modelProvider: ModelProvider(configurationStore: configurationStore)
+        )
+        .preferredColorScheme(.light)
+        .frame(width: 540, height: 560)
+        .background(Color.white)
+
+        let pngData = try render(view, size: NSSize(width: 540, height: 560))
+        #expect(pngData.count > 10_000)
+        try pngData.write(
+            to: URL(filePath: "/tmp/translatora-qwen-settings-render.png"),
+            options: .atomic
+        )
     }
 
     @Test

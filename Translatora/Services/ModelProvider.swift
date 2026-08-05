@@ -23,12 +23,18 @@ final class ModelProvider: LLMCompleting {
         try await MiniMaxProvider(configuration: configuration).testConnection()
     }
 
+    func testConnection(using configuration: QwenConfiguration) async throws {
+        try await QwenProvider(configuration: configuration).testConnection()
+    }
+
     private func currentProvider() -> any LLMProvider {
         switch configurationStore.selectedProvider {
         case .deepSeek:
             DeepSeekProvider(configuration: configurationStore.deepSeekConfiguration)
         case .miniMax:
             MiniMaxProvider(configuration: configurationStore.miniMaxConfiguration)
+        case .qwen:
+            QwenProvider(configuration: configurationStore.qwenConfiguration)
         }
     }
 }

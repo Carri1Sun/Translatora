@@ -38,5 +38,31 @@ struct ConfigurationStoreTests {
         #expect(store.selectedProvider == .deepSeek)
         #expect(store.deepSeekConfiguration.apiKey == "existing-key")
         #expect(store.miniMaxConfiguration.model == .m3)
+        #expect(store.qwenConfiguration.model == .v38Max)
+        #expect(store.qwenConfiguration.region == .international)
+    }
+
+    @Test
+    func persistsQwenTokenPlanConfiguration() {
+        let suiteName = "ConfigurationStoreTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = ConfigurationStore(defaults: defaults)
+        store.saveQwenConfiguration(
+            QwenConfiguration(
+                apiKey: "  qwen-key  ",
+                model: .v36Flash,
+                region: .china
+            )
+        )
+        store.selectProvider(.qwen)
+
+        let restoredStore = ConfigurationStore(defaults: defaults)
+
+        #expect(restoredStore.selectedProvider == .qwen)
+        #expect(restoredStore.qwenConfiguration.apiKey == "qwen-key")
+        #expect(restoredStore.qwenConfiguration.model == .v36Flash)
+        #expect(restoredStore.qwenConfiguration.region == .china)
     }
 }

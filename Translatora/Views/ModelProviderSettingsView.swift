@@ -17,6 +17,9 @@ struct ModelProviderSettingsView: View {
     @State private var deepSeekModel = DeepSeekModel.v4Flash
     @State private var miniMaxAPIKey = ""
     @State private var miniMaxModel = MiniMaxModel.m3
+    @State private var qwenAPIKey = ""
+    @State private var qwenModel = QwenModel.v38Max
+    @State private var qwenRegion = QwenTokenPlanRegion.international
     @State private var feedback = Feedback.none
 
     var body: some View {
@@ -39,6 +42,8 @@ struct ModelProviderSettingsView: View {
                 deepSeekSection
             case .miniMax:
                 miniMaxSection
+            case .qwen:
+                qwenSection
             }
 
             Section {
@@ -69,6 +74,9 @@ struct ModelProviderSettingsView: View {
         .onChange(of: deepSeekModel) { _, _ in clearFeedbackAfterEditing() }
         .onChange(of: miniMaxAPIKey) { _, _ in clearFeedbackAfterEditing() }
         .onChange(of: miniMaxModel) { _, _ in clearFeedbackAfterEditing() }
+        .onChange(of: qwenAPIKey) { _, _ in clearFeedbackAfterEditing() }
+        .onChange(of: qwenModel) { _, _ in clearFeedbackAfterEditing() }
+        .onChange(of: qwenRegion) { _, _ in clearFeedbackAfterEditing() }
     }
 
     private var deepSeekSection: some View {
@@ -109,6 +117,33 @@ struct ModelProviderSettingsView: View {
         }
     }
 
+    private var qwenSection: some View {
+        Section("Qwen Token Plan") {
+            SecureField("Token Plan 专用 API Key", text: $qwenAPIKey)
+                .textFieldStyle(.roundedBorder)
+
+            Picker("模型", selection: $qwenModel) {
+                ForEach(QwenModel.allCases) { model in
+                    Text(model.displayName).tag(model)
+                }
+            }
+
+            Text(qwenModel.summary)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Picker("服务区域", selection: $qwenRegion) {
+                ForEach(QwenTokenPlanRegion.allCases) { region in
+                    Text(region.displayName).tag(region)
+                }
+            }
+
+            Text("请选择 Token Plan API Keys 页面显示的区域。专用 Key 不能用于按量计费或 Coding Plan 地址。")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
     @ViewBuilder
     private var feedbackView: some View {
         switch feedback {
@@ -144,6 +179,8 @@ struct ModelProviderSettingsView: View {
             normalized(deepSeekAPIKey)
         case .miniMax:
             normalized(miniMaxAPIKey)
+        case .qwen:
+            normalized(qwenAPIKey)
         }
     }
 
@@ -161,21 +198,34 @@ struct ModelProviderSettingsView: View {
         ).normalized
     }
 
+    private var qwenDraft: QwenConfiguration {
+        QwenConfiguration(
+            apiKey: qwenAPIKey,
+            model: qwenModel,
+            region: qwenRegion
+        ).normalized
+    }
+
     private func loadSavedConfiguration() {
         selectedProvider = configurationStore.selectedProvider
         deepSeekAPIKey = configurationStore.deepSeekConfiguration.apiKey
         deepSeekModel = configurationStore.deepSeekConfiguration.model
         miniMaxAPIKey = configurationStore.miniMaxConfiguration.apiKey
         miniMaxModel = configurationStore.miniMaxConfiguration.model
+        qwenAPIKey = configurationStore.qwenConfiguration.apiKey
+        qwenModel = configurationStore.qwenConfiguration.model
+        qwenRegion = configurationStore.qwenConfiguration.region
         feedback = .none
     }
 
     private func save() {
         configurationStore.saveDeepSeekConfiguration(deepSeekDraft)
         configurationStore.saveMiniMaxConfiguration(miniMaxDraft)
+        configurationStore.saveQwenConfiguration(qwenDraft)
         configurationStore.selectProvider(selectedProvider)
         deepSeekAPIKey = normalized(deepSeekAPIKey)
         miniMaxAPIKey = normalized(miniMaxAPIKey)
+        qwenAPIKey = normalized(qwenAPIKey)
         feedback = .saved
     }
 
@@ -189,6 +239,8 @@ struct ModelProviderSettingsView: View {
                     try await modelProvider.testConnection(using: deepSeekDraft)
                 case .miniMax:
                     try await modelProvider.testConnection(using: miniMaxDraft)
+                case .qwen:
+                    try await modelProvider.testConnection(using: qwenDraft)
                 }
                 feedback = .connected
             } catch {

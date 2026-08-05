@@ -53,6 +53,7 @@ struct MiniMaxConfiguration: Equatable, Sendable {
 enum ModelProviderKind: String, CaseIterable, Codable, Identifiable, Sendable {
     case deepSeek
     case miniMax
+    case qwen
 
     var id: String { rawValue }
 
@@ -62,6 +63,8 @@ enum ModelProviderKind: String, CaseIterable, Codable, Identifiable, Sendable {
             "DeepSeek"
         case .miniMax:
             "MiniMax（国内版）"
+        case .qwen:
+            "Qwen Token Plan"
         }
     }
 }

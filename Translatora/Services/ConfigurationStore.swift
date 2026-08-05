@@ -6,6 +6,7 @@ final class ConfigurationStore: ObservableObject {
     @Published private(set) var selectedProvider: ModelProviderKind
     @Published private(set) var deepSeekConfiguration: DeepSeekConfiguration
     @Published private(set) var miniMaxConfiguration: MiniMaxConfiguration
+    @Published private(set) var qwenConfiguration: QwenConfiguration
 
     private enum Keys {
         static let selectedProvider = "modelProvider.selected"
@@ -13,6 +14,9 @@ final class ConfigurationStore: ObservableObject {
         static let deepSeekModel = "deepseek.model"
         static let miniMaxAPIKey = "minimax.apiKey"
         static let miniMaxModel = "minimax.model"
+        static let qwenAPIKey = "qwen.tokenPlan.apiKey"
+        static let qwenModel = "qwen.tokenPlan.model"
+        static let qwenRegion = "qwen.tokenPlan.region"
     }
 
     private let defaults: UserDefaults
@@ -39,6 +43,13 @@ final class ConfigurationStore: ObservableObject {
             model: defaults.string(forKey: Keys.miniMaxModel)
                 .flatMap(MiniMaxModel.init(rawValue:)) ?? .m3
         )
+        qwenConfiguration = QwenConfiguration(
+            apiKey: defaults.string(forKey: Keys.qwenAPIKey) ?? "",
+            model: defaults.string(forKey: Keys.qwenModel)
+                .flatMap(QwenModel.init(rawValue:)) ?? .v38Max,
+            region: defaults.string(forKey: Keys.qwenRegion)
+                .flatMap(QwenTokenPlanRegion.init(rawValue:)) ?? .international
+        )
 
         if defaults.string(forKey: Keys.deepSeekAPIKey) == nil,
            let legacyConfiguration {
@@ -63,6 +74,16 @@ final class ConfigurationStore: ObservableObject {
         defaults.set(configuration.apiKey, forKey: Keys.miniMaxAPIKey)
         defaults.set(configuration.model.rawValue, forKey: Keys.miniMaxModel)
         miniMaxConfiguration = configuration
+    }
+
+    func saveQwenConfiguration(_ configuration: QwenConfiguration) {
+        let configuration = configuration.normalized
+
+        // TODO: 未来使用 Keychain 安全存储 API Key。
+        defaults.set(configuration.apiKey, forKey: Keys.qwenAPIKey)
+        defaults.set(configuration.model.rawValue, forKey: Keys.qwenModel)
+        defaults.set(configuration.region.rawValue, forKey: Keys.qwenRegion)
+        qwenConfiguration = configuration
     }
 
     func selectProvider(_ provider: ModelProviderKind) {

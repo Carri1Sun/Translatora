@@ -2,7 +2,7 @@
 
 一款面向 macOS 的划词翻译与个人词典应用。选中其他应用中的文本，按下全局快捷键，即可在翻译浮窗中获得 AI 翻译和语境例句；有价值的表达可以继续收藏、补充笔记，沉淀到应用首页的词汇列表中。
 
-> 当前仓库提供源码，需使用 Xcode 构建运行。应用要求 macOS 26.0 或更高版本，并需要自行配置 DeepSeek API Key。
+> 当前仓库提供源码，需使用 Xcode 构建运行。应用要求 macOS 26.0 或更高版本，并需要自行配置所选翻译服务的 API Key。
 
 ![Translatora 应用首页：按日期整理已收藏的翻译](docs/screenshots/home.png)
 
@@ -48,7 +48,7 @@
 ### 按自己的习惯使用
 
 - 外观可选跟随系统、浅色或深色模式。
-- 翻译服务可选 `DeepSeek V4 Flash` 或 `DeepSeek V4 Pro`；代码当前默认使用 Flash。
+- 翻译服务支持 DeepSeek、MiniMax 国内版与 Qwen Token Plan；Qwen 可选 `qwen3.8-max` 或 `qwen3.6-flash`。
 - 可在设置中测试 API 连接、修改或删除各项快捷键，并查看辅助功能权限状态。
 - 可在设置中决定是否显示菜单栏图标。
 - 界面采用克制的原生 macOS 风格，仅在翻译浮窗等需要空间层次的位置使用背景模糊。
@@ -61,7 +61,7 @@
 
 - macOS 26.0+
 - Xcode 26+
-- 一个可用的 [DeepSeek 开放平台](https://platform.deepseek.com/) API Key
+- 一个受支持翻译服务的可用 API Key
 
 ### 构建并运行
 
@@ -85,7 +85,7 @@ xcodebuild \
 ### 首次配置
 
 1. 启动后点击应用首页右上角的齿轮，或按 `⌘,` 打开设置。
-2. 填入 DeepSeek API Key，选择模型，点击「测试连接」，成功后保存。
+2. 选择翻译服务，填入对应 API Key 和模型，点击「测试连接」，成功后保存。Qwen Token Plan 还需选择与 API Keys 页面一致的服务区域。
 3. 如需划词翻译，在「选中文本」区域请求辅助功能权限；也可以前往「系统设置 → 隐私与安全性 → 辅助功能」手动授权。
 4. 回到任意应用选中文本，按 `⇧⌘T` 开始第一次翻译。
 
@@ -96,7 +96,7 @@ xcodebuild \
 - 收藏的词汇保存在 `~/Library/Application Support/Translatora/dictionary.json`，应用没有账号体系或云同步。
 - 导出的词汇表备份只写入用户在系统面板中选择的位置，导入内容也只在本地处理。
 - API Key 保存在当前用户的本地偏好设置中。现阶段尚未接入 Keychain，建议只在可信设备上使用。
-- 发起翻译时，输入文本会发送到配置的 DeepSeek API；词汇笔记和已经收藏的词汇不会自动上传。
+- 发起翻译时，输入文本会发送到当前选中的翻译服务；词汇笔记和已经收藏的词汇不会自动上传。
 - 辅助功能权限用于读取其他应用的选中文本。读取过程会触发复制操作，并在完成后恢复原有剪贴板内容。
 
 ## 技术架构
@@ -116,14 +116,16 @@ Translatora 使用 SwiftUI + Combine 开发，依赖 AppKit、Carbon 和 Applica
                         TranslationService  DictionaryStore
                                  │            │
                                  ▼            ▼
-                         DeepSeekProvider  dictionary.json
+                          ModelProvider   dictionary.json
+                         /      |      \
+                 DeepSeek   MiniMax   Qwen Token Plan
 ```
 
 主要分层：
 
 - `Views`：应用首页、翻译浮窗、词汇详情与设置界面。
 - `Services`：快捷键监听、选中文本读取、翻译请求、面板生命周期和本地词典持久化。
-- `Models`：语言、翻译结果、词汇条目、外观、快捷键与模型配置。
+- `Models`：语言、翻译结果、词汇条目、外观、快捷键与各翻译服务的模型配置。
 - `AppDependencies`：创建并连接应用级服务，统一管理生命周期与共享状态。
 
 ## 测试
