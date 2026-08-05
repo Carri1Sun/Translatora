@@ -18,7 +18,7 @@ struct TranslationPanelView: View {
             phaseContent
         }
         .padding(24)
-        .frame(width: 640)
+        .frame(minWidth: 520, maxWidth: .infinity)
         .frame(maxHeight: .infinity, alignment: .top)
         .background(panelBackground)
         .preferredColorScheme(appearanceStore.appearance.colorScheme)

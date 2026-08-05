@@ -4,16 +4,22 @@ import SwiftUI
 
 @MainActor
 final class TranslationPanelController: NSObject, NSWindowDelegate {
+    private static let defaultSize = NSSize(width: 640, height: 350)
+
     private let panel: TranslationPanel
     private let viewModel: TranslationPanelViewModel
     private let shortcutStore: ShortcutStore
     private let selectedTextReader: SelectedTextReader
+    private let placementStore: TranslationPanelPlacementStore
     private let onViewDictionaryEntry: (UUID) -> Void
     private let savedToastController = SavedEntryToastController()
     private var phaseCancellable: AnyCancellable?
     private var appearanceCancellable: AnyCancellable?
     private var selectionReadTask: Task<Void, Never>?
+    private var moveSettlementTask: Task<Void, Never>?
     private var selectionReadGeneration = 0
+    private var isApplyingFrame = false
+    private var isUserSized = false
 
     init(
         translationService: TranslationService,
@@ -21,7 +27,8 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
         appearanceStore: AppearanceStore,
         shortcutStore: ShortcutStore,
         selectedTextReader: SelectedTextReader,
-        onViewDictionaryEntry: @escaping (UUID) -> Void
+        onViewDictionaryEntry: @escaping (UUID) -> Void,
+        placementStore: TranslationPanelPlacementStore? = nil
     ) {
         viewModel = TranslationPanelViewModel(
             translationService: translationService,
@@ -30,8 +37,9 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
         self.shortcutStore = shortcutStore
         self.selectedTextReader = selectedTextReader
         self.onViewDictionaryEntry = onViewDictionaryEntry
+        self.placementStore = placementStore ?? TranslationPanelPlacementStore()
         panel = TranslationPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 640, height: 350),
+            contentRect: NSRect(origin: .zero, size: Self.defaultSize),
             styleMask: [.titled, .closable, .fullSizeContentView, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -67,8 +75,8 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
         let sourceProcessIdentifier = selectedTextReader.captureSourceProcessIdentifier()
 
         viewModel.prepare(selectedText: nil)
-        resize(for: .idle, animated: false)
-        panel.center()
+        restorePlacement()
+        updateResizable(for: .idle)
         panel.orderFrontRegardless()
 
         selectionReadTask = Task { [weak self] in
@@ -90,6 +98,11 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
     }
 
     func close() {
+        if panel.isVisible {
+            constrainAndPersist(animate: false)
+        }
+        moveSettlementTask?.cancel()
+        moveSettlementTask = nil
         selectionReadGeneration += 1
         selectionReadTask?.cancel()
         selectionReadTask = nil
@@ -98,7 +111,25 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
+        constrainAndPersist(animate: false)
         viewModel.reset()
+    }
+
+    func windowDidMove(_ notification: Notification) {
+        guard panel.isVisible, !isApplyingFrame, !panel.inLiveResize else { return }
+        scheduleMoveSettlement()
+    }
+
+    func windowDidEndLiveResize(_ notification: Notification) {
+        guard !isApplyingFrame else { return }
+        isUserSized = true
+        constrainAndPersist(animate: true)
+    }
+
+    func windowDidChangeScreen(_ notification: Notification) {
+        updateResizeLimits()
+        guard panel.isVisible, !isApplyingFrame else { return }
+        scheduleMoveSettlement()
     }
 
     private func configurePanel(appearanceStore: AppearanceStore) {
@@ -115,8 +146,8 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
         panel.becomesKeyOnlyIfNeeded = false
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
-        panel.minSize = NSSize(width: 640, height: 350)
-        panel.maxSize = NSSize(width: 640, height: 760)
+        panel.minSize = NSSize(width: 520, height: 350)
+        updateResizeLimits()
         panel.onKeyDown = { [weak self] event in
             self?.handleSaveShortcut(event) ?? false
         }
@@ -136,6 +167,7 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
             .removeDuplicates()
             .dropFirst()
             .sink { [weak self] phase in
+                self?.updateResizable(for: phase)
                 self?.resize(for: phase, animated: true)
             }
     }
@@ -156,6 +188,11 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
     }
 
     private func resize(for phase: TranslationPhase, animated: Bool) {
+        if isUserSized {
+            constrainAndPersist(animate: false)
+            return
+        }
+
         let preferredHeight: CGFloat
         switch phase {
         case .idle: preferredHeight = 350
@@ -170,20 +207,162 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
         let targetFrame = NSRect(
             x: oldFrame.minX,
             y: oldFrame.maxY - height,
-            width: 640,
+            width: Self.defaultSize.width,
             height: height
         )
 
-        guard animated, panel.isVisible else {
-            panel.setFrame(targetFrame, display: true)
+        applyFrame(targetFrame, animate: animated && panel.isVisible)
+    }
+
+    private func restorePlacement() {
+        let displays = availableDisplays
+        guard let defaultDisplay = defaultDisplay(from: displays) else {
+            applyFrame(NSRect(origin: .zero, size: Self.defaultSize), animate: false)
+            panel.center()
             return
         }
 
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.32
-            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            panel.animator().setFrame(targetFrame, display: true)
+        guard let placement = placementStore.load() else {
+            isUserSized = false
+            applyFrame(
+                placementStore.centeredFrame(size: Self.defaultSize, on: defaultDisplay),
+                animate: false
+            )
+            return
         }
+
+        isUserSized = placement.isUserSized
+        if let restoredFrame = placementStore.restoredFrame(
+            from: placement,
+            displays: displays,
+            defaultSize: Self.defaultSize
+        ) {
+            applyFrame(restoredFrame, animate: false)
+            persistCurrentPlacement(on: placementStore.nearestDisplay(
+                to: restoredFrame,
+                displays: displays
+            ))
+            return
+        }
+
+        let restoredSize = placement.isUserSized
+            ? NSSize(width: placement.width, height: placement.height)
+            : Self.defaultSize
+        let centeredFrame = placementStore.centeredFrame(
+            size: restoredSize,
+            on: defaultDisplay
+        )
+        applyFrame(centeredFrame, animate: false)
+        persistCurrentPlacement(on: defaultDisplay)
+    }
+
+    private func updateResizable(for phase: TranslationPhase) {
+        if case .result = phase {
+            panel.styleMask.insert(.resizable)
+        } else {
+            panel.styleMask.remove(.resizable)
+        }
+        updateResizeLimits()
+    }
+
+    private func updateResizeLimits() {
+        let visibleFrame = panel.screen?.visibleFrame
+            ?? NSScreen.main?.visibleFrame
+            ?? NSRect(x: 0, y: 0, width: 1_200, height: 800)
+        panel.maxSize = NSSize(
+            width: max(panel.minSize.width, visibleFrame.width - 24),
+            height: max(panel.minSize.height, visibleFrame.height - 24)
+        )
+    }
+
+    private func scheduleMoveSettlement() {
+        moveSettlementTask?.cancel()
+        moveSettlementTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(180))
+            guard !Task.isCancelled else { return }
+            guard NSEvent.pressedMouseButtons & 1 == 0 else {
+                self?.scheduleMoveSettlement()
+                return
+            }
+            guard self?.panel.isVisible == true else { return }
+            self?.constrainAndPersist(animate: true)
+        }
+    }
+
+    private func constrainAndPersist(animate: Bool) {
+        let displays = availableDisplays
+        guard let targetDisplay = placementStore.nearestDisplay(
+            to: panel.frame,
+            displays: displays
+        ) else { return }
+
+        let targetFrame: NSRect
+        if placementStore.isFullyVisible(panel.frame, across: displays) {
+            targetFrame = panel.frame
+        } else {
+            targetFrame = placementStore.constrained(
+                panel.frame,
+                to: targetDisplay.visibleFrame
+            )
+        }
+
+        if !panel.frame.equalTo(targetFrame) {
+            applyFrame(targetFrame, animate: animate && panel.isVisible)
+        }
+        updateResizeLimits()
+        persistCurrentPlacement(on: targetDisplay)
+    }
+
+    private func persistCurrentPlacement(on display: TranslationPanelDisplay?) {
+        guard let display else { return }
+        placementStore.save(
+            placementStore.placement(
+                for: panel.frame,
+                on: display,
+                isUserSized: isUserSized
+            )
+        )
+    }
+
+    private func applyFrame(_ frame: NSRect, animate: Bool) {
+        moveSettlementTask?.cancel()
+        moveSettlementTask = nil
+        isApplyingFrame = true
+        defer { isApplyingFrame = false }
+
+        if animate {
+            panel.setFrame(frame, display: true, animate: true)
+        } else {
+            panel.setFrame(frame, display: true)
+        }
+    }
+
+    private var availableDisplays: [TranslationPanelDisplay] {
+        NSScreen.screens.map { screen in
+            TranslationPanelDisplay(
+                identifier: screenIdentifier(screen),
+                visibleFrame: screen.visibleFrame
+            )
+        }
+    }
+
+    private func defaultDisplay(
+        from displays: [TranslationPanelDisplay]
+    ) -> TranslationPanelDisplay? {
+        if let screen = NSScreen.main {
+            let identifier = screenIdentifier(screen)
+            return displays.first(where: { $0.identifier == identifier })
+        }
+        return displays.first
+    }
+
+    private func screenIdentifier(_ screen: NSScreen) -> String {
+        if let number = screen.deviceDescription[
+            NSDeviceDescriptionKey("NSScreenNumber")
+        ] as? NSNumber {
+            return number.stringValue
+        }
+        return "\(screen.localizedName)-\(screen.frame.debugDescription)"
     }
 
     private func handleSaveShortcut(_ event: NSEvent) -> Bool {
@@ -201,6 +380,7 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
     }
 
     private func handleSavedEntry(_ entry: DictionaryEntry) {
+        constrainAndPersist(animate: false)
         let anchorFrame = panel.frame
         panel.orderOut(nil)
         viewModel.reset()
