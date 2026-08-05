@@ -1,7 +1,7 @@
 import Foundation
 
 @MainActor
-final class ModelProvider: LLMCompleting {
+final class LanguageModelProviderRouter: LanguageModelCompleting {
     private let configurationStore: ConfigurationStore
 
     init(configurationStore: ConfigurationStore) {
@@ -27,8 +27,8 @@ final class ModelProvider: LLMCompleting {
         try await QwenProvider(configuration: configuration).testConnection()
     }
 
-    private func currentProvider() -> any LLMProvider {
-        switch configurationStore.selectedProvider {
+    private func currentProvider() -> any LanguageModelProvider {
+        switch configurationStore.selectedLanguageProvider {
         case .deepSeek:
             DeepSeekProvider(configuration: configurationStore.deepSeekConfiguration)
         case .miniMax:

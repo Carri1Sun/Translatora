@@ -6,7 +6,7 @@ protocol NetworkSession: Sendable {
 
 extension URLSession: NetworkSession {}
 
-struct DeepSeekProvider: LLMProvider {
+struct DeepSeekProvider: LanguageModelProvider {
     private let configuration: DeepSeekConfiguration
     private let session: any NetworkSession
     private let baseURL: URL

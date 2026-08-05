@@ -291,6 +291,7 @@ struct DictionaryHomeView: View {
 
                 DictionaryEntryDetailView(
                     entry: entry,
+                    pronunciationService: dependencies.pronunciationService,
                     position: index + 1,
                     totalCount: orderedEntries.count,
                     canGoPrevious: index > 0,
@@ -323,7 +324,8 @@ struct DictionaryHomeView: View {
 
                 SettingsCardView(
                     configurationStore: dependencies.configurationStore,
-                    modelProvider: dependencies.modelProvider,
+                    languageModelProvider: dependencies.languageModelProvider,
+                    pronunciationCache: dependencies.pronunciationService.cache,
                     appearanceStore: dependencies.appearanceStore,
                     menuBarStore: dependencies.menuBarStore,
                     shortcutStore: dependencies.shortcutStore,

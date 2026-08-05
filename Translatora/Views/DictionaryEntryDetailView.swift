@@ -2,6 +2,7 @@ import SwiftUI
 
 struct DictionaryEntryDetailView: View {
     let entry: DictionaryEntry
+    @ObservedObject var pronunciationService: PronunciationService
     let position: Int
     let totalCount: Int
     let canGoPrevious: Bool
@@ -43,6 +44,13 @@ struct DictionaryEntryDetailView: View {
             }
         }
         .frame(width: 680, height: 660)
+        .alert("无法播放读音", isPresented: pronunciationErrorBinding) {
+            Button("好", role: .cancel) {
+                pronunciationService.dismissError()
+            }
+        } message: {
+            Text(pronunciationService.errorMessage ?? "未知错误")
+        }
         .animation(.spring(response: 0.38, dampingFraction: 0.88), value: isEditing)
     }
 
@@ -114,10 +122,18 @@ struct DictionaryEntryDetailView: View {
 
     private var heroSection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(entry.sourceText)
-                .font(.system(size: 30, weight: .bold, design: .rounded))
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(entry.sourceText)
+                    .font(.system(size: 30, weight: .bold, design: .rounded))
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                PronunciationButton(
+                    service: pronunciationService,
+                    text: entry.sourceText,
+                    language: entry.sourceLanguage
+                )
+            }
 
             Text(entry.translatedText)
                 .font(.system(size: 20, weight: .medium))
@@ -290,6 +306,17 @@ struct DictionaryEntryDetailView: View {
         withAnimation {
             isEditing = editing
         }
+    }
+
+    private var pronunciationErrorBinding: Binding<Bool> {
+        Binding(
+            get: { pronunciationService.errorMessage != nil },
+            set: { isPresented in
+                if !isPresented {
+                    pronunciationService.dismissError()
+                }
+            }
+        )
     }
 }
 

@@ -3,13 +3,15 @@ import Foundation
 
 @MainActor
 final class ConfigurationStore: ObservableObject {
-    @Published private(set) var selectedProvider: ModelProviderKind
+    @Published private(set) var selectedLanguageProvider: LanguageModelProviderKind
+    @Published private(set) var selectedTTSProvider: TTSProviderKind
     @Published private(set) var deepSeekConfiguration: DeepSeekConfiguration
     @Published private(set) var miniMaxConfiguration: MiniMaxConfiguration
     @Published private(set) var qwenConfiguration: QwenConfiguration
 
     private enum Keys {
         static let selectedProvider = "modelProvider.selected"
+        static let selectedTTSProvider = "ttsProvider.selected"
         static let deepSeekAPIKey = "deepseek.apiKey"
         static let deepSeekModel = "deepseek.model"
         static let miniMaxAPIKey = "minimax.apiKey"
@@ -35,8 +37,10 @@ final class ConfigurationStore: ObservableObject {
             ?? legacyConfiguration?.model.rawValue)
             .flatMap(DeepSeekModel.init(rawValue:)) ?? .v4Flash
 
-        selectedProvider = defaults.string(forKey: Keys.selectedProvider)
-            .flatMap(ModelProviderKind.init(rawValue:)) ?? .deepSeek
+        selectedLanguageProvider = defaults.string(forKey: Keys.selectedProvider)
+            .flatMap(LanguageModelProviderKind.init(rawValue:)) ?? .deepSeek
+        selectedTTSProvider = defaults.string(forKey: Keys.selectedTTSProvider)
+            .flatMap(TTSProviderKind.init(rawValue:)) ?? .qwen
         deepSeekConfiguration = DeepSeekConfiguration(apiKey: apiKey, model: model)
         miniMaxConfiguration = MiniMaxConfiguration(
             apiKey: defaults.string(forKey: Keys.miniMaxAPIKey) ?? "",
@@ -86,9 +90,14 @@ final class ConfigurationStore: ObservableObject {
         qwenConfiguration = configuration
     }
 
-    func selectProvider(_ provider: ModelProviderKind) {
+    func selectLanguageProvider(_ provider: LanguageModelProviderKind) {
         defaults.set(provider.rawValue, forKey: Keys.selectedProvider)
-        selectedProvider = provider
+        selectedLanguageProvider = provider
+    }
+
+    func selectTTSProvider(_ provider: TTSProviderKind) {
+        defaults.set(provider.rawValue, forKey: Keys.selectedTTSProvider)
+        selectedTTSProvider = provider
     }
 
     private static func loadSandboxedConfigurationIfNeeded(

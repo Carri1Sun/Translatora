@@ -1,6 +1,6 @@
 import Foundation
 
-struct MiniMaxProvider: LLMProvider {
+struct MiniMaxProvider: LanguageModelProvider {
     private let configuration: MiniMaxConfiguration
     private let session: any NetworkSession
     private let baseURL: URL

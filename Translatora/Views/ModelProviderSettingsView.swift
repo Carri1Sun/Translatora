@@ -10,9 +10,10 @@ struct ModelProviderSettingsView: View {
     }
 
     @ObservedObject var configurationStore: ConfigurationStore
-    let modelProvider: ModelProvider
+    let languageModelProvider: LanguageModelProviderRouter
 
-    @State private var selectedProvider = ModelProviderKind.deepSeek
+    @State private var selectedLanguageProvider = LanguageModelProviderKind.deepSeek
+    @State private var selectedTTSProvider = TTSProviderKind.qwen
     @State private var deepSeekAPIKey = ""
     @State private var deepSeekModel = DeepSeekModel.v4Flash
     @State private var miniMaxAPIKey = ""
@@ -25,8 +26,8 @@ struct ModelProviderSettingsView: View {
     var body: some View {
         Form {
             Section("翻译服务") {
-                Picker("Provider", selection: $selectedProvider) {
-                    ForEach(ModelProviderKind.allCases) { provider in
+                Picker("翻译 Provider", selection: $selectedLanguageProvider) {
+                    ForEach(LanguageModelProviderKind.allCases) { provider in
                         Text(provider.displayName).tag(provider)
                     }
                 }
@@ -37,14 +38,19 @@ struct ModelProviderSettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            switch selectedProvider {
-            case .deepSeek:
-                deepSeekSection
-            case .miniMax:
-                miniMaxSection
-            case .qwen:
-                qwenSection
+            Section("朗读服务") {
+                Picker("朗读 Provider", selection: $selectedTTSProvider) {
+                    ForEach(TTSProviderKind.allCases) { provider in
+                        Text(provider.displayName).tag(provider)
+                    }
+                }
+
+                Text("朗读服务独立于翻译服务选择，并复用对应 Provider 的 API Key。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
+
+            providerConfigurationSections
 
             Section {
                 HStack {
@@ -52,7 +58,7 @@ struct ModelProviderSettingsView: View {
 
                     Spacer()
 
-                    Button("测试连接") {
+                    Button("测试翻译连接") {
                         testConnection()
                     }
                     .disabled(isTesting || activeAPIKey.isEmpty)
@@ -69,7 +75,8 @@ struct ModelProviderSettingsView: View {
         .formStyle(.grouped)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear(perform: loadSavedConfiguration)
-        .onChange(of: selectedProvider) { _, _ in clearFeedbackAfterEditing() }
+        .onChange(of: selectedLanguageProvider) { _, _ in clearFeedbackAfterEditing() }
+        .onChange(of: selectedTTSProvider) { _, _ in clearFeedbackAfterEditing() }
         .onChange(of: deepSeekAPIKey) { _, _ in clearFeedbackAfterEditing() }
         .onChange(of: deepSeekModel) { _, _ in clearFeedbackAfterEditing() }
         .onChange(of: miniMaxAPIKey) { _, _ in clearFeedbackAfterEditing() }
@@ -145,6 +152,28 @@ struct ModelProviderSettingsView: View {
     }
 
     @ViewBuilder
+    private var providerConfigurationSections: some View {
+        switch selectedLanguageProvider {
+        case .deepSeek:
+            deepSeekSection
+        case .miniMax:
+            miniMaxSection
+        case .qwen:
+            qwenSection
+        }
+
+        if selectedTTSProvider == .miniMax,
+           selectedLanguageProvider != .miniMax {
+            miniMaxSection
+        }
+
+        if selectedTTSProvider == .qwen,
+           selectedLanguageProvider != .qwen {
+            qwenSection
+        }
+    }
+
+    @ViewBuilder
     private var feedbackView: some View {
         switch feedback {
         case .none:
@@ -174,7 +203,7 @@ struct ModelProviderSettingsView: View {
     }
 
     private var activeAPIKey: String {
-        switch selectedProvider {
+        switch selectedLanguageProvider {
         case .deepSeek:
             normalized(deepSeekAPIKey)
         case .miniMax:
@@ -207,7 +236,8 @@ struct ModelProviderSettingsView: View {
     }
 
     private func loadSavedConfiguration() {
-        selectedProvider = configurationStore.selectedProvider
+        selectedLanguageProvider = configurationStore.selectedLanguageProvider
+        selectedTTSProvider = configurationStore.selectedTTSProvider
         deepSeekAPIKey = configurationStore.deepSeekConfiguration.apiKey
         deepSeekModel = configurationStore.deepSeekConfiguration.model
         miniMaxAPIKey = configurationStore.miniMaxConfiguration.apiKey
@@ -222,7 +252,8 @@ struct ModelProviderSettingsView: View {
         configurationStore.saveDeepSeekConfiguration(deepSeekDraft)
         configurationStore.saveMiniMaxConfiguration(miniMaxDraft)
         configurationStore.saveQwenConfiguration(qwenDraft)
-        configurationStore.selectProvider(selectedProvider)
+        configurationStore.selectLanguageProvider(selectedLanguageProvider)
+        configurationStore.selectTTSProvider(selectedTTSProvider)
         deepSeekAPIKey = normalized(deepSeekAPIKey)
         miniMaxAPIKey = normalized(miniMaxAPIKey)
         qwenAPIKey = normalized(qwenAPIKey)
@@ -234,13 +265,13 @@ struct ModelProviderSettingsView: View {
 
         Task {
             do {
-                switch selectedProvider {
+                switch selectedLanguageProvider {
                 case .deepSeek:
-                    try await modelProvider.testConnection(using: deepSeekDraft)
+                    try await languageModelProvider.testConnection(using: deepSeekDraft)
                 case .miniMax:
-                    try await modelProvider.testConnection(using: miniMaxDraft)
+                    try await languageModelProvider.testConnection(using: miniMaxDraft)
                 case .qwen:
-                    try await modelProvider.testConnection(using: qwenDraft)
+                    try await languageModelProvider.testConnection(using: qwenDraft)
                 }
                 feedback = .connected
             } catch {
@@ -263,7 +294,7 @@ struct ModelProviderSettingsView: View {
     let store = ConfigurationStore()
     ModelProviderSettingsView(
         configurationStore: store,
-        modelProvider: ModelProvider(configurationStore: store)
+        languageModelProvider: LanguageModelProviderRouter(configurationStore: store)
     )
     .frame(width: 540, height: 560)
 }

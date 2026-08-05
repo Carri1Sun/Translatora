@@ -1,6 +1,6 @@
 import Foundation
 
-struct QwenProvider: LLMProvider {
+struct QwenProvider: LanguageModelProvider {
     private let configuration: QwenConfiguration
     private let session: any NetworkSession
     private let baseURL: URL

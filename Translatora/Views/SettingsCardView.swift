@@ -27,7 +27,8 @@ struct SettingsCardView: View {
     }
 
     @ObservedObject var configurationStore: ConfigurationStore
-    let modelProvider: ModelProvider
+    let languageModelProvider: LanguageModelProviderRouter
+    let pronunciationCache: SpeechAudioCache
     @ObservedObject var appearanceStore: AppearanceStore
     @ObservedObject var menuBarStore: MenuBarStore
     @ObservedObject var shortcutStore: ShortcutStore
@@ -94,12 +95,13 @@ struct SettingsCardView: View {
                 shortcutErrorMessage: shortcutErrorMessage,
                 updateTranslationShortcut: updateTranslationShortcut,
                 updateSaveShortcut: updateSaveShortcut,
-                selectedTextReader: selectedTextReader
+                selectedTextReader: selectedTextReader,
+                pronunciationCache: pronunciationCache
             )
         case .providers:
             ModelProviderSettingsView(
                 configurationStore: configurationStore,
-                modelProvider: modelProvider
+                languageModelProvider: languageModelProvider
             )
         }
     }
@@ -110,7 +112,7 @@ struct SettingsCardView: View {
                 Text("设置")
                     .font(.title2.weight(.bold))
 
-                Text("调整通用偏好与翻译模型。")
+                Text("调整通用偏好、翻译与朗读模型。")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

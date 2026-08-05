@@ -50,7 +50,7 @@ struct MiniMaxConfiguration: Equatable, Sendable {
     }
 }
 
-enum ModelProviderKind: String, CaseIterable, Codable, Identifiable, Sendable {
+enum LanguageModelProviderKind: String, CaseIterable, Codable, Identifiable, Sendable {
     case deepSeek
     case miniMax
     case qwen
@@ -65,6 +65,22 @@ enum ModelProviderKind: String, CaseIterable, Codable, Identifiable, Sendable {
             "MiniMax（国内版）"
         case .qwen:
             "Qwen Token Plan"
+        }
+    }
+}
+
+enum TTSProviderKind: String, CaseIterable, Codable, Identifiable, Sendable {
+    case qwen
+    case miniMax
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .qwen:
+            "Qwen · qwen-audio-3.0-tts-plus"
+        case .miniMax:
+            "MiniMax · speech-2.8-hd"
         }
     }
 }

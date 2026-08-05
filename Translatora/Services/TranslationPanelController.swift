@@ -29,6 +29,7 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
         appearanceStore: AppearanceStore,
         shortcutStore: ShortcutStore,
         selectedTextReader: SelectedTextReader,
+        pronunciationService: PronunciationService,
         onViewDictionaryEntry: @escaping (UUID) -> Void,
         placementStore: TranslationPanelPlacementStore? = nil
     ) {
@@ -54,7 +55,10 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
         )
         super.init()
 
-        configurePanel(appearanceStore: appearanceStore)
+        configurePanel(
+            appearanceStore: appearanceStore,
+            pronunciationService: pronunciationService
+        )
         observePhase()
         observeAppearance(appearanceStore)
     }
@@ -147,7 +151,10 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
         scheduleMoveSettlement()
     }
 
-    private func configurePanel(appearanceStore: AppearanceStore) {
+    private func configurePanel(
+        appearanceStore: AppearanceStore,
+        pronunciationService: PronunciationService
+    ) {
         panel.delegate = self
         panel.title = "翻译浮窗"
         panel.titleVisibility = .hidden
@@ -171,6 +178,7 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
             viewModel: viewModel,
             appearanceStore: appearanceStore,
             shortcutStore: shortcutStore,
+            pronunciationService: pronunciationService,
             onClose: { [weak self] in self?.close() },
             onSaved: { [weak self] entry in self?.handleSavedEntry(entry) }
         )

@@ -77,6 +77,7 @@ struct RenderingSmokeTests {
 
         let view = DictionaryEntryDetailView(
             entry: entry,
+            pronunciationService: makePronunciationService("Detail"),
             position: 2,
             totalCount: 6,
             canGoPrevious: true,
@@ -107,11 +108,18 @@ struct RenderingSmokeTests {
                 region: .international
             )
         )
-        configurationStore.selectProvider(.qwen)
+        configurationStore.selectLanguageProvider(.qwen)
 
         let view = SettingsCardView(
             configurationStore: configurationStore,
-            modelProvider: ModelProvider(configurationStore: configurationStore),
+            languageModelProvider: LanguageModelProviderRouter(
+                configurationStore: configurationStore
+            ),
+            pronunciationCache: SpeechAudioCache(
+                directoryURL: FileManager.default.temporaryDirectory.appending(
+                    path: "TranslatoraRender.SettingsCache.\(UUID().uuidString)"
+                )
+            ),
             appearanceStore: AppearanceStore(defaults: defaults),
             menuBarStore: MenuBarStore(defaults: defaults),
             shortcutStore: ShortcutStore(defaults: defaults),
@@ -143,11 +151,13 @@ struct RenderingSmokeTests {
                 region: .international
             )
         )
-        configurationStore.selectProvider(.qwen)
+        configurationStore.selectLanguageProvider(.qwen)
 
         let view = ModelProviderSettingsView(
             configurationStore: configurationStore,
-            modelProvider: ModelProvider(configurationStore: configurationStore)
+            languageModelProvider: LanguageModelProviderRouter(
+                configurationStore: configurationStore
+            )
         )
         .preferredColorScheme(.light)
         .frame(width: 540, height: 560)
@@ -189,6 +199,7 @@ struct RenderingSmokeTests {
             shortcutStore: ShortcutStore(
                 defaults: UserDefaults(suiteName: "TranslatoraRender.Shortcut.Panel")!
             ),
+            pronunciationService: makePronunciationService("Panel"),
             onClose: {},
             onSaved: { _ in }
         )
@@ -219,10 +230,21 @@ struct RenderingSmokeTests {
         }
         return data
     }
+
+    private func makePronunciationService(_ suffix: String) -> PronunciationService {
+        PronunciationService(
+            ttsProvider: RenderTTSSynthesizer(),
+            cache: SpeechAudioCache(
+                directoryURL: FileManager.default.temporaryDirectory.appending(
+                    path: "TranslatoraRender.Speech.\(suffix).\(UUID().uuidString)"
+                )
+            )
+        )
+    }
 }
 
 @MainActor
-private struct RenderCompleter: LLMCompleting {
+private struct RenderCompleter: LanguageModelCompleting {
     func complete(_ request: LLMRequest) async throws -> LLMResponse {
         LLMResponse(
             content: """
@@ -230,6 +252,13 @@ private struct RenderCompleter: LLMCompleting {
             """,
             model: "render-stub"
         )
+    }
+}
+
+@MainActor
+private struct RenderTTSSynthesizer: TTSSynthesizing {
+    func synthesize(_ request: TTSRequest) async throws -> TTSResponse {
+        TTSResponse(audioData: Data(), fileExtension: "mp3", model: "render-stub")
     }
 }
 

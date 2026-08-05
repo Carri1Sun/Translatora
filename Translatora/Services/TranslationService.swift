@@ -2,9 +2,9 @@ import Foundation
 
 @MainActor
 final class TranslationService {
-    private let modelProvider: any LLMCompleting
+    private let modelProvider: any LanguageModelCompleting
 
-    init(modelProvider: any LLMCompleting) {
+    init(modelProvider: any LanguageModelCompleting) {
         self.modelProvider = modelProvider
     }
 

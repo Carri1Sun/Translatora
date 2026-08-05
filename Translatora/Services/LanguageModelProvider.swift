@@ -55,12 +55,12 @@ enum LLMProviderError: LocalizedError, Equatable {
     }
 }
 
-protocol LLMProvider {
+protocol LanguageModelProvider {
     func complete(_ request: LLMRequest) async throws -> LLMResponse
     func testConnection() async throws
 }
 
 @MainActor
-protocol LLMCompleting {
+protocol LanguageModelCompleting {
     func complete(_ request: LLMRequest) async throws -> LLMResponse
 }

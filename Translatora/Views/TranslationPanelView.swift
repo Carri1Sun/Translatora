@@ -4,6 +4,7 @@ struct TranslationPanelView: View {
     @ObservedObject var viewModel: TranslationPanelViewModel
     @ObservedObject var appearanceStore: AppearanceStore
     @ObservedObject var shortcutStore: ShortcutStore
+    @ObservedObject var pronunciationService: PronunciationService
     let onClose: () -> Void
     let onSaved: (DictionaryEntry) -> Void
 
@@ -35,6 +36,13 @@ struct TranslationPanelView: View {
             viewModel.translationOptionsDidChange()
         }
         .onExitCommand(perform: onClose)
+        .alert("无法播放读音", isPresented: pronunciationErrorBinding) {
+            Button("好", role: .cancel) {
+                pronunciationService.dismissError()
+            }
+        } message: {
+            Text(pronunciationService.errorMessage ?? "未知错误")
+        }
         .animation(.spring(response: 0.42, dampingFraction: 0.86), value: viewModel.phase)
     }
 
@@ -204,9 +212,19 @@ struct TranslationPanelView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("翻译结果")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(AppTheme.accentDeep)
+                    HStack {
+                        Text("翻译结果")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(AppTheme.accentDeep)
+
+                        Spacer()
+
+                        PronunciationButton(
+                            service: pronunciationService,
+                            text: viewModel.inputText,
+                            language: viewModel.sourceLanguage
+                        )
+                    }
                     Text(result.translation)
                         .font(.system(size: 20, weight: .medium))
                         .textSelection(.enabled)
@@ -329,5 +347,16 @@ struct TranslationPanelView: View {
     private func saveResult() {
         guard let entry = viewModel.saveResult() else { return }
         onSaved(entry)
+    }
+
+    private var pronunciationErrorBinding: Binding<Bool> {
+        Binding(
+            get: { pronunciationService.errorMessage != nil },
+            set: { isPresented in
+                if !isPresented {
+                    pronunciationService.dismissError()
+                }
+            }
+        )
     }
 }

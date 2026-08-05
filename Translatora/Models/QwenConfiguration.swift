@@ -52,6 +52,19 @@ enum QwenTokenPlanRegion: String, CaseIterable, Codable, Identifiable, Sendable 
             )!
         }
     }
+
+    var ttsWebSocketURL: URL {
+        switch self {
+        case .international:
+            URL(
+                string: "wss://token-plan.ap-southeast-1.maas.aliyuncs.com/api-ws/v1/inference/"
+            )!
+        case .china:
+            URL(
+                string: "wss://token-plan.cn-beijing.maas.aliyuncs.com/api-ws/v1/inference/"
+            )!
+        }
+    }
 }
 
 struct QwenConfiguration: Equatable, Sendable {

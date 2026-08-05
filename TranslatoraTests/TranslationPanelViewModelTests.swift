@@ -51,7 +51,7 @@ struct TranslationPanelViewModelTests {
 }
 
 @MainActor
-private struct PanelCompleter: LLMCompleting {
+private struct PanelCompleter: LanguageModelCompleting {
     func complete(_ request: LLMRequest) async throws -> LLMResponse {
         LLMResponse(
             content: "{\"translation\":\"你好\",\"examples\":[]}",

@@ -46,7 +46,7 @@ struct TranslationServiceTests {
 }
 
 @MainActor
-private final class StubCompleter: LLMCompleting {
+private final class StubCompleter: LanguageModelCompleting {
     let content: String
     private(set) var requests: [LLMRequest] = []
 

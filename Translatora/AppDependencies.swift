@@ -5,7 +5,9 @@ import Foundation
 @MainActor
 final class AppDependencies: ObservableObject {
     let configurationStore: ConfigurationStore
-    let modelProvider: ModelProvider
+    let languageModelProvider: LanguageModelProviderRouter
+    let ttsProvider: TTSProviderRouter
+    let pronunciationService: PronunciationService
     let dictionaryStore: DictionaryStore
     let appearanceStore: AppearanceStore
     let menuBarStore: MenuBarStore
@@ -28,14 +30,22 @@ final class AppDependencies: ObservableObject {
     init() {
         let configurationStore = ConfigurationStore()
         self.configurationStore = configurationStore
-        let modelProvider = ModelProvider(configurationStore: configurationStore)
-        self.modelProvider = modelProvider
+        let languageModelProvider = LanguageModelProviderRouter(
+            configurationStore: configurationStore
+        )
+        self.languageModelProvider = languageModelProvider
+        let ttsProvider = TTSProviderRouter(configurationStore: configurationStore)
+        self.ttsProvider = ttsProvider
+        pronunciationService = PronunciationService(
+            ttsProvider: ttsProvider,
+            cache: SpeechAudioCache()
+        )
         dictionaryStore = DictionaryStore()
         appearanceStore = AppearanceStore()
         menuBarStore = MenuBarStore()
         shortcutStore = ShortcutStore()
         selectedTextReader = SelectedTextReader()
-        translationService = TranslationService(modelProvider: modelProvider)
+        translationService = TranslationService(modelProvider: languageModelProvider)
         observeAppearanceChanges()
         observeMenuBarChanges()
         observeShortcutChanges()
@@ -43,14 +53,22 @@ final class AppDependencies: ObservableObject {
 
     init(configurationStore: ConfigurationStore) {
         self.configurationStore = configurationStore
-        let modelProvider = ModelProvider(configurationStore: configurationStore)
-        self.modelProvider = modelProvider
+        let languageModelProvider = LanguageModelProviderRouter(
+            configurationStore: configurationStore
+        )
+        self.languageModelProvider = languageModelProvider
+        let ttsProvider = TTSProviderRouter(configurationStore: configurationStore)
+        self.ttsProvider = ttsProvider
+        pronunciationService = PronunciationService(
+            ttsProvider: ttsProvider,
+            cache: SpeechAudioCache()
+        )
         dictionaryStore = DictionaryStore()
         appearanceStore = AppearanceStore()
         menuBarStore = MenuBarStore()
         shortcutStore = ShortcutStore()
         selectedTextReader = SelectedTextReader()
-        translationService = TranslationService(modelProvider: modelProvider)
+        translationService = TranslationService(modelProvider: languageModelProvider)
         observeAppearanceChanges()
         observeMenuBarChanges()
         observeShortcutChanges()
@@ -66,6 +84,7 @@ final class AppDependencies: ObservableObject {
             appearanceStore: appearanceStore,
             shortcutStore: shortcutStore,
             selectedTextReader: selectedTextReader,
+            pronunciationService: pronunciationService,
             onViewDictionaryEntry: { [weak self] entryID in
                 self?.showDictionaryEntry(entryID)
             }

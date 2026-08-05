@@ -8,9 +8,14 @@ struct GeneralSettingsView: View {
     let updateTranslationShortcut: (GlobalShortcut?) -> Bool
     let updateSaveShortcut: (GlobalShortcut?) -> Bool
     let selectedTextReader: SelectedTextReader
+    let pronunciationCache: SpeechAudioCache
 
     @State private var isAccessibilityTrusted = false
     @State private var shortcutValidationError: String?
+    @State private var cacheSizeInBytes: Int64 = 0
+    @State private var cacheErrorMessage: String?
+    @State private var isClearingCache = false
+    @State private var isConfirmingCacheClear = false
 
     var body: some View {
         Form {
@@ -89,11 +94,57 @@ struct GeneralSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            Section("语音缓存") {
+                HStack {
+                    Label("已缓存的读音", systemImage: "waveform")
+
+                    Spacer()
+
+                    if isClearingCache {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Text(formattedCacheSize)
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
+
+                    Button("清理缓存", role: .destructive) {
+                        isConfirmingCacheClear = true
+                    }
+                    .disabled(isClearingCache || cacheSizeInBytes == 0)
+                }
+
+                Text("读音以原文文本的 SHA-256 哈希命名并保存在本机，不写入词典数据库。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                if let cacheErrorMessage {
+                    Label(cacheErrorMessage, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            }
         }
         .formStyle(.grouped)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .preferredColorScheme(appearanceStore.appearance.colorScheme)
         .onAppear(perform: refreshAccessibilityStatus)
+        .task {
+            await refreshCacheSize()
+        }
+        .confirmationDialog(
+            "清理全部语音缓存？",
+            isPresented: $isConfirmingCacheClear
+        ) {
+            Button("清理缓存", role: .destructive) {
+                clearCache()
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("再次播放时会重新请求语音服务。")
+        }
     }
 
     private var appearanceBinding: Binding<AppAppearance> {
@@ -167,6 +218,37 @@ struct GeneralSettingsView: View {
         shortcutValidationError = nil
         _ = updateSaveShortcut(shortcut)
     }
+
+    private var formattedCacheSize: String {
+        ByteCountFormatter.string(
+            fromByteCount: cacheSizeInBytes,
+            countStyle: .file
+        )
+    }
+
+    private func refreshCacheSize() async {
+        do {
+            cacheSizeInBytes = try await pronunciationCache.sizeInBytes()
+            cacheErrorMessage = nil
+        } catch {
+            cacheErrorMessage = error.localizedDescription
+        }
+    }
+
+    private func clearCache() {
+        isClearingCache = true
+        cacheErrorMessage = nil
+
+        Task {
+            do {
+                try await pronunciationCache.clear()
+                cacheSizeInBytes = 0
+            } catch {
+                cacheErrorMessage = error.localizedDescription
+            }
+            isClearingCache = false
+        }
+    }
 }
 
 #Preview {
@@ -177,7 +259,8 @@ struct GeneralSettingsView: View {
         shortcutErrorMessage: nil,
         updateTranslationShortcut: { _ in true },
         updateSaveShortcut: { _ in true },
-        selectedTextReader: SelectedTextReader()
+        selectedTextReader: SelectedTextReader(),
+        pronunciationCache: SpeechAudioCache()
     )
     .frame(width: 540, height: 560)
 }
