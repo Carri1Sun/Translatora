@@ -36,16 +36,83 @@ enum MiniMaxModel: String, CaseIterable, Codable, Identifiable, Sendable {
     }
 }
 
+enum MiniMaxTTSVoice: String, CaseIterable, Codable, Identifiable, Sendable {
+    case automatic
+    case maleQingse = "male-qn-qingse"
+    case maleJingying = "male-qn-jingying"
+    case femaleShaonv = "female-shaonv"
+    case femaleYujie = "female-yujie"
+    case englishGracefulLady = "English_Graceful_Lady"
+    case englishTrustworthyMan = "English_Trustworthy_Man"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .automatic:
+            "自动匹配翻译语言"
+        case .maleQingse:
+            "青涩青年（中文）"
+        case .maleJingying:
+            "精英青年（中文）"
+        case .femaleShaonv:
+            "少女（中文）"
+        case .femaleYujie:
+            "御姐（中文）"
+        case .englishGracefulLady:
+            "Graceful Lady（英文）"
+        case .englishTrustworthyMan:
+            "Trustworthy Man（英文）"
+        }
+    }
+
+    func voiceID(for language: TranslationLanguage) -> String {
+        guard self == .automatic else { return rawValue }
+
+        return switch language {
+        case .english:
+            "English_Graceful_Lady"
+        case .simplifiedChinese, .traditionalChinese:
+            "male-qn-qingse"
+        case .japanese:
+            "Japanese_KindLady"
+        case .korean:
+            "Korean_CalmLady"
+        case .french:
+            "French_FemaleAnchor"
+        case .german:
+            "German_SweetLady"
+        case .spanish:
+            "Spanish_SereneWoman"
+        }
+    }
+
+    var testRequest: TTSRequest {
+        switch self {
+        case .maleQingse, .maleJingying, .femaleShaonv, .femaleYujie:
+            TTSRequest(text: "你好，这是语音测试。", language: .simplifiedChinese)
+        case .automatic, .englishGracefulLady, .englishTrustworthyMan:
+            TTSRequest(text: "Hello, this is a voice test.", language: .english)
+        }
+    }
+}
+
 struct MiniMaxConfiguration: Equatable, Sendable {
     var apiKey: String
     var model: MiniMaxModel
+    var ttsVoice: MiniMaxTTSVoice = .automatic
 
-    static let empty = MiniMaxConfiguration(apiKey: "", model: .m3)
+    static let empty = MiniMaxConfiguration(
+        apiKey: "",
+        model: .m3,
+        ttsVoice: .automatic
+    )
 
     var normalized: MiniMaxConfiguration {
         MiniMaxConfiguration(
             apiKey: apiKey.trimmingCharacters(in: .whitespacesAndNewlines),
-            model: model
+            model: model,
+            ttsVoice: ttsVoice
         )
     }
 }

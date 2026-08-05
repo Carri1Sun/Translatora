@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsCardView: View {
     private enum Page: String, CaseIterable, Identifiable {
         case general
+        case apiKeys
         case providers
 
         var id: String { rawValue }
@@ -11,8 +12,10 @@ struct SettingsCardView: View {
             switch self {
             case .general:
                 "通用设置"
+            case .apiKeys:
+                "API Key"
             case .providers:
-                "模型 Provider"
+                "Provider"
             }
         }
 
@@ -20,6 +23,8 @@ struct SettingsCardView: View {
             switch self {
             case .general:
                 "gearshape"
+            case .apiKeys:
+                "key"
             case .providers:
                 "cpu"
             }
@@ -28,6 +33,7 @@ struct SettingsCardView: View {
 
     @ObservedObject var configurationStore: ConfigurationStore
     let languageModelProvider: LanguageModelProviderRouter
+    let ttsProvider: TTSProviderRouter
     let pronunciationCache: SpeechAudioCache
     @ObservedObject var appearanceStore: AppearanceStore
     @ObservedObject var menuBarStore: MenuBarStore
@@ -98,11 +104,14 @@ struct SettingsCardView: View {
                 selectedTextReader: selectedTextReader,
                 pronunciationCache: pronunciationCache
             )
-        case .providers:
-            ModelProviderSettingsView(
+        case .apiKeys:
+            APIKeySettingsView(
                 configurationStore: configurationStore,
-                languageModelProvider: languageModelProvider
+                languageModelProvider: languageModelProvider,
+                ttsProvider: ttsProvider
             )
+        case .providers:
+            ProviderSelectionSettingsView(configurationStore: configurationStore)
         }
     }
 
@@ -112,7 +121,7 @@ struct SettingsCardView: View {
                 Text("设置")
                     .font(.title2.weight(.bold))
 
-                Text("调整通用偏好、翻译与朗读模型。")
+                Text("调整通用偏好、API Key 与服务 Provider。")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

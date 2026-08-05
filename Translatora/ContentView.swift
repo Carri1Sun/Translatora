@@ -325,6 +325,7 @@ struct DictionaryHomeView: View {
                 SettingsCardView(
                     configurationStore: dependencies.configurationStore,
                     languageModelProvider: dependencies.languageModelProvider,
+                    ttsProvider: dependencies.ttsProvider,
                     pronunciationCache: dependencies.pronunciationService.cache,
                     appearanceStore: dependencies.appearanceStore,
                     menuBarStore: dependencies.menuBarStore,

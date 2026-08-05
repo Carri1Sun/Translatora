@@ -16,9 +16,11 @@ final class ConfigurationStore: ObservableObject {
         static let deepSeekModel = "deepseek.model"
         static let miniMaxAPIKey = "minimax.apiKey"
         static let miniMaxModel = "minimax.model"
+        static let miniMaxTTSVoice = "minimax.tts.voice"
         static let qwenAPIKey = "qwen.tokenPlan.apiKey"
         static let qwenModel = "qwen.tokenPlan.model"
         static let qwenRegion = "qwen.tokenPlan.region"
+        static let qwenTTSVoice = "qwen.tokenPlan.tts.voice"
     }
 
     private let defaults: UserDefaults
@@ -45,14 +47,18 @@ final class ConfigurationStore: ObservableObject {
         miniMaxConfiguration = MiniMaxConfiguration(
             apiKey: defaults.string(forKey: Keys.miniMaxAPIKey) ?? "",
             model: defaults.string(forKey: Keys.miniMaxModel)
-                .flatMap(MiniMaxModel.init(rawValue:)) ?? .m3
+                .flatMap(MiniMaxModel.init(rawValue:)) ?? .m3,
+            ttsVoice: defaults.string(forKey: Keys.miniMaxTTSVoice)
+                .flatMap(MiniMaxTTSVoice.init(rawValue:)) ?? .automatic
         )
         qwenConfiguration = QwenConfiguration(
             apiKey: defaults.string(forKey: Keys.qwenAPIKey) ?? "",
             model: defaults.string(forKey: Keys.qwenModel)
                 .flatMap(QwenModel.init(rawValue:)) ?? .v38Max,
             region: defaults.string(forKey: Keys.qwenRegion)
-                .flatMap(QwenTokenPlanRegion.init(rawValue:)) ?? .international
+                .flatMap(QwenTokenPlanRegion.init(rawValue:)) ?? .international,
+            ttsVoice: defaults.string(forKey: Keys.qwenTTSVoice)
+                .flatMap(QwenTTSVoice.init(rawValue:)) ?? .longXiaochun
         )
 
         if defaults.string(forKey: Keys.deepSeekAPIKey) == nil,
@@ -77,6 +83,7 @@ final class ConfigurationStore: ObservableObject {
         // TODO: 未来使用 Keychain 安全存储 API Key。
         defaults.set(configuration.apiKey, forKey: Keys.miniMaxAPIKey)
         defaults.set(configuration.model.rawValue, forKey: Keys.miniMaxModel)
+        defaults.set(configuration.ttsVoice.rawValue, forKey: Keys.miniMaxTTSVoice)
         miniMaxConfiguration = configuration
     }
 
@@ -87,6 +94,7 @@ final class ConfigurationStore: ObservableObject {
         defaults.set(configuration.apiKey, forKey: Keys.qwenAPIKey)
         defaults.set(configuration.model.rawValue, forKey: Keys.qwenModel)
         defaults.set(configuration.region.rawValue, forKey: Keys.qwenRegion)
+        defaults.set(configuration.ttsVoice.rawValue, forKey: Keys.qwenTTSVoice)
         qwenConfiguration = configuration
     }
 

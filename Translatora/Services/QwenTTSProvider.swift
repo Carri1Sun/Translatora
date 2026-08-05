@@ -6,7 +6,7 @@ enum TTSWebSocketMessage: Equatable, Sendable {
 }
 
 protocol TTSWebSocketTask: Sendable {
-    func resume()
+    func connect() async throws
     func send(_ message: TTSWebSocketMessage) async throws
     func receive() async throws -> TTSWebSocketMessage
     func cancel()
@@ -17,26 +17,33 @@ protocol TTSWebSocketSession: Sendable {
 }
 
 struct URLSessionTTSWebSocketSession: TTSWebSocketSession {
-    let session: URLSession
-
-    init(session: URLSession = .shared) {
-        self.session = session
-    }
-
     func makeWebSocketTask(with request: URLRequest) -> any TTSWebSocketTask {
-        URLSessionTTSWebSocketTask(task: session.webSocketTask(with: request))
+        URLSessionTTSWebSocketTask(request: request)
     }
 }
 
 private final class URLSessionTTSWebSocketTask: TTSWebSocketTask, @unchecked Sendable {
+    private let session: URLSession
     private let task: URLSessionWebSocketTask
+    private let connectionState: TTSWebSocketConnectionState
 
-    init(task: URLSessionWebSocketTask) {
-        self.task = task
+    init(request: URLRequest) {
+        let connectionState = TTSWebSocketConnectionState()
+        let delegate = TTSWebSocketConnectionDelegate(state: connectionState)
+        let session = URLSession(
+            configuration: .default,
+            delegate: delegate,
+            delegateQueue: nil
+        )
+
+        self.connectionState = connectionState
+        self.session = session
+        task = session.webSocketTask(with: request)
     }
 
-    func resume() {
+    func connect() async throws {
         task.resume()
+        try await connectionState.waitUntilOpen()
     }
 
     func send(_ message: TTSWebSocketMessage) async throws {
@@ -61,12 +68,99 @@ private final class URLSessionTTSWebSocketTask: TTSWebSocketTask, @unchecked Sen
 
     func cancel() {
         task.cancel(with: .goingAway, reason: nil)
+        session.finishTasksAndInvalidate()
+    }
+}
+
+private actor TTSWebSocketConnectionState {
+    private enum Status {
+        case connecting
+        case open
+        case failed(Error)
+    }
+
+    private var status = Status.connecting
+    private var continuation: CheckedContinuation<Void, Error>?
+
+    func waitUntilOpen() async throws {
+        switch status {
+        case .open:
+            return
+        case let .failed(error):
+            throw error
+        case .connecting:
+            try await withCheckedThrowingContinuation { continuation in
+                self.continuation = continuation
+            }
+        }
+    }
+
+    func didOpen() {
+        guard case .connecting = status else { return }
+        status = .open
+        continuation?.resume()
+        continuation = nil
+    }
+
+    func didFail(_ error: Error) {
+        guard case .connecting = status else { return }
+        status = .failed(error)
+        continuation?.resume(throwing: error)
+        continuation = nil
+    }
+}
+
+private final class TTSWebSocketConnectionDelegate:
+    NSObject,
+    URLSessionWebSocketDelegate,
+    @unchecked Sendable
+{
+    private let state: TTSWebSocketConnectionState
+
+    init(state: TTSWebSocketConnectionState) {
+        self.state = state
+    }
+
+    nonisolated func urlSession(
+        _ session: URLSession,
+        webSocketTask: URLSessionWebSocketTask,
+        didOpenWithProtocol protocol: String?
+    ) {
+        Task {
+            await state.didOpen()
+        }
+    }
+
+    nonisolated func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didCompleteWithError error: Error?
+    ) {
+        guard let error else { return }
+        Task {
+            await state.didFail(error)
+        }
+    }
+
+    nonisolated func urlSession(
+        _ session: URLSession,
+        webSocketTask: URLSessionWebSocketTask,
+        didCloseWith closeCode: URLSessionWebSocketTask.CloseCode,
+        reason: Data?
+    ) {
+        let reasonText = reason
+            .flatMap { String(data: $0, encoding: .utf8) }
+            ?? "连接在握手前关闭（\(closeCode.rawValue)）"
+        Task {
+            await state.didFail(
+                TTSProviderError.transport(reasonText)
+            )
+        }
     }
 }
 
 struct QwenTTSProvider: TTSProvider {
     static let model = "qwen-audio-3.0-tts-plus"
-    static let voice = "longanlingxin"
 
     private let configuration: QwenConfiguration
     private let webSocketSession: any TTSWebSocketSession
@@ -96,14 +190,17 @@ struct QwenTTSProvider: TTSProvider {
             "Bearer \(configuration.apiKey)",
             forHTTPHeaderField: "Authorization"
         )
-        urlRequest.setValue("enable", forHTTPHeaderField: "X-DashScope-DataInspection")
+        urlRequest.setValue(
+            "Translatora/1.0 (macOS; DashScope WebSocket)",
+            forHTTPHeaderField: "User-Agent"
+        )
 
         let socket = webSocketSession.makeWebSocketTask(with: urlRequest)
-        socket.resume()
 
         return try await withTaskCancellationHandler {
             defer { socket.cancel() }
             do {
+                try await socket.connect()
                 return try await runSynthesis(
                     text: text,
                     language: request.language,
@@ -114,7 +211,7 @@ struct QwenTTSProvider: TTSProvider {
             } catch is CancellationError {
                 throw CancellationError()
             } catch {
-                throw TTSProviderError.transport(error.localizedDescription)
+                throw resolvedTransportError(error)
             }
         } onCancel: {
             Task { @MainActor in
@@ -128,7 +225,9 @@ struct QwenTTSProvider: TTSProvider {
         language: TranslationLanguage,
         socket: any TTSWebSocketTask
     ) async throws -> TTSResponse {
-        let taskID = UUID().uuidString.lowercased()
+        let taskID = UUID().uuidString
+            .replacingOccurrences(of: "-", with: "")
+            .lowercased()
         try await send(
             [
                 "header": commandHeader(action: "run-task", taskID: taskID),
@@ -139,13 +238,14 @@ struct QwenTTSProvider: TTSProvider {
                     "model": Self.model,
                     "parameters": [
                         "text_type": "PlainText",
-                        "voice": Self.voice,
+                        "voice": configuration.ttsVoice.rawValue,
                         "format": "mp3",
                         "sample_rate": 22_050,
                         "volume": 50,
                         "rate": 1,
                         "pitch": 1,
-                        "enable_ssml": false,
+                        "seed": 0,
+                        "type": 0,
                         "language_hints": [language.qwenLanguageHint]
                     ],
                     "input": [:]
@@ -232,6 +332,19 @@ struct QwenTTSProvider: TTSProvider {
             throw TTSProviderError.invalidResponse
         }
         try await socket.send(.string(string))
+    }
+
+    private func resolvedTransportError(_ error: Error) -> TTSProviderError {
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain,
+           nsError.code == NSURLErrorBadServerResponse {
+            return .service(
+                provider: "Qwen Token Plan",
+                message: "WebSocket 握手被服务端拒绝。请确认使用 Token Plan 专用 Key（通常以 sk-sp- 开头），并在 API Key 设置中测试连接"
+            )
+        }
+
+        return .transport(error.localizedDescription)
     }
 }
 

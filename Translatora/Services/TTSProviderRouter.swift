@@ -12,6 +12,20 @@ final class TTSProviderRouter: TTSSynthesizing {
         try await currentProvider().synthesize(request)
     }
 
+    func testConnection(
+        using configuration: MiniMaxConfiguration
+    ) async throws -> TTSResponse {
+        try await MiniMaxTTSProvider(configuration: configuration)
+            .synthesize(configuration.ttsVoice.testRequest)
+    }
+
+    func testConnection(
+        using configuration: QwenConfiguration
+    ) async throws -> TTSResponse {
+        try await QwenTTSProvider(configuration: configuration)
+            .synthesize(configuration.ttsVoice.testRequest)
+    }
+
     private func currentProvider() -> any TTSProvider {
         switch configurationStore.selectedTTSProvider {
         case .qwen:

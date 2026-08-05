@@ -30,7 +30,7 @@ struct MiniMaxTTSProvider: TTSProvider {
             stream: false,
             languageBoost: request.language.miniMaxLanguageBoost,
             voiceSetting: MiniMaxVoiceSetting(
-                voiceID: request.language.miniMaxVoiceID,
+                voiceID: configuration.ttsVoice.voiceID(for: request.language),
                 speed: 1,
                 volume: 1,
                 pitch: 0
@@ -187,17 +187,6 @@ private extension TranslationLanguage {
         }
     }
 
-    var miniMaxVoiceID: String {
-        switch self {
-        case .english: "English_Graceful_Lady"
-        case .simplifiedChinese, .traditionalChinese: "male-qn-qingse"
-        case .japanese: "Japanese_KindLady"
-        case .korean: "Korean_CalmLady"
-        case .french: "French_FemaleAnchor"
-        case .german: "German_SweetLady"
-        case .spanish: "Spanish_SereneWoman"
-        }
-    }
 }
 
 private extension Data {

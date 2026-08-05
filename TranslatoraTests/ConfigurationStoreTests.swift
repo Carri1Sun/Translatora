@@ -14,7 +14,8 @@ struct ConfigurationStoreTests {
         store.saveMiniMaxConfiguration(
             MiniMaxConfiguration(
                 apiKey: "  minimax-key  ",
-                model: .m27Highspeed
+                model: .m27Highspeed,
+                ttsVoice: .femaleYujie
             )
         )
         store.selectLanguageProvider(.miniMax)
@@ -26,6 +27,7 @@ struct ConfigurationStoreTests {
         #expect(restoredStore.selectedTTSProvider == .miniMax)
         #expect(restoredStore.miniMaxConfiguration.apiKey == "minimax-key")
         #expect(restoredStore.miniMaxConfiguration.model == .m27Highspeed)
+        #expect(restoredStore.miniMaxConfiguration.ttsVoice == .femaleYujie)
     }
 
     @Test
@@ -43,6 +45,8 @@ struct ConfigurationStoreTests {
         #expect(store.miniMaxConfiguration.model == .m3)
         #expect(store.qwenConfiguration.model == .v38Max)
         #expect(store.qwenConfiguration.region == .international)
+        #expect(store.miniMaxConfiguration.ttsVoice == .automatic)
+        #expect(store.qwenConfiguration.ttsVoice == .longXiaochun)
     }
 
     @Test
@@ -56,7 +60,8 @@ struct ConfigurationStoreTests {
             QwenConfiguration(
                 apiKey: "  qwen-key  ",
                 model: .v36Flash,
-                region: .china
+                region: .china,
+                ttsVoice: .longAnLufeng
             )
         )
         store.selectLanguageProvider(.qwen)
@@ -67,5 +72,6 @@ struct ConfigurationStoreTests {
         #expect(restoredStore.qwenConfiguration.apiKey == "qwen-key")
         #expect(restoredStore.qwenConfiguration.model == .v36Flash)
         #expect(restoredStore.qwenConfiguration.region == .china)
+        #expect(restoredStore.qwenConfiguration.ttsVoice == .longAnLufeng)
     }
 }

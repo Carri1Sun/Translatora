@@ -5,7 +5,7 @@ import Testing
 @MainActor
 struct MiniMaxTTSProviderTests {
     @Test
-    func synthesizesMP3WithLanguageSpecificVoice() async throws {
+    func synthesizesMP3WithConfiguredVoice() async throws {
         let responseData = Data(
             """
             {
@@ -19,7 +19,11 @@ struct MiniMaxTTSProviderTests {
             responseData: responseData
         )
         let provider = MiniMaxTTSProvider(
-            configuration: MiniMaxConfiguration(apiKey: "  tts-key  ", model: .m3),
+            configuration: MiniMaxConfiguration(
+                apiKey: "  tts-key  ",
+                model: .m3,
+                ttsVoice: .englishTrustworthyMan
+            ),
             session: session
         )
 
@@ -44,7 +48,7 @@ struct MiniMaxTTSProviderTests {
         #expect(body["language_boost"] as? String == "English")
         #expect(body["output_format"] as? String == "hex")
         let voice = try #require(body["voice_setting"] as? [String: Any])
-        #expect(voice["voice_id"] as? String == "English_Graceful_Lady")
+        #expect(voice["voice_id"] as? String == "English_Trustworthy_Man")
     }
 
     @Test

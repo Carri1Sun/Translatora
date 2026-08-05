@@ -115,6 +115,7 @@ struct RenderingSmokeTests {
             languageModelProvider: LanguageModelProviderRouter(
                 configurationStore: configurationStore
             ),
+            ttsProvider: TTSProviderRouter(configurationStore: configurationStore),
             pronunciationCache: SpeechAudioCache(
                 directoryURL: FileManager.default.temporaryDirectory.appending(
                     path: "TranslatoraRender.SettingsCache.\(UUID().uuidString)"
@@ -140,7 +141,7 @@ struct RenderingSmokeTests {
     }
 
     @Test
-    func rendersQwenProviderSettings() throws {
+    func rendersAPIKeySettings() throws {
         let suiteName = "TranslatoraRender.QwenSettings.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         let configurationStore = ConfigurationStore(defaults: defaults)
@@ -153,11 +154,12 @@ struct RenderingSmokeTests {
         )
         configurationStore.selectLanguageProvider(.qwen)
 
-        let view = ModelProviderSettingsView(
+        let view = APIKeySettingsView(
             configurationStore: configurationStore,
             languageModelProvider: LanguageModelProviderRouter(
                 configurationStore: configurationStore
-            )
+            ),
+            ttsProvider: TTSProviderRouter(configurationStore: configurationStore)
         )
         .preferredColorScheme(.light)
         .frame(width: 540, height: 560)
@@ -167,6 +169,27 @@ struct RenderingSmokeTests {
         #expect(pngData.count > 10_000)
         try pngData.write(
             to: URL(filePath: "/tmp/translatora-qwen-settings-render.png"),
+            options: .atomic
+        )
+    }
+
+    @Test
+    func rendersProviderSelectionSettings() throws {
+        let suiteName = "TranslatoraRender.ProviderSelection.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        let configurationStore = ConfigurationStore(defaults: defaults)
+
+        let view = ProviderSelectionSettingsView(
+            configurationStore: configurationStore
+        )
+        .preferredColorScheme(.light)
+        .frame(width: 596, height: 620)
+        .background(Color.white)
+
+        let pngData = try render(view, size: NSSize(width: 596, height: 620))
+        #expect(pngData.count > 10_000)
+        try pngData.write(
+            to: URL(filePath: "/tmp/translatora-provider-settings-render.png"),
             options: .atomic
         )
     }

@@ -19,7 +19,8 @@ struct QwenTTSProviderTests {
             configuration: QwenConfiguration(
                 apiKey: "  qwen-tts-key  ",
                 model: .v38Max,
-                region: .international
+                region: .international,
+                ttsVoice: .longAnLingxin
             ),
             webSocketSession: session
         )
@@ -33,13 +34,15 @@ struct QwenTTSProviderTests {
         let request = try #require(session.lastRequest)
         #expect(
             request.url?.absoluteString
-                == "wss://token-plan.ap-southeast-1.maas.aliyuncs.com/api-ws/v1/inference/"
+                == "wss://token-plan.ap-southeast-1.maas.aliyuncs.com/api-ws/v1/inference"
         )
         #expect(
             request.value(forHTTPHeaderField: "Authorization")
                 == "Bearer qwen-tts-key"
         )
-        #expect(task.didResume)
+        #expect(request.value(forHTTPHeaderField: "User-Agent") != nil)
+        #expect(request.value(forHTTPHeaderField: "X-DashScope-DataInspection") == nil)
+        #expect(task.didConnect)
         #expect(task.didCancel)
 
         let commands = try task.sentMessages.map(decodeObject)
@@ -50,9 +53,71 @@ struct QwenTTSProviderTests {
 
         let runPayload = try #require(commands[0]["payload"] as? [String: Any])
         #expect(runPayload["model"] as? String == "qwen-audio-3.0-tts-plus")
+        let runHeader = try #require(commands[0]["header"] as? [String: Any])
+        let taskID = try #require(runHeader["task_id"] as? String)
+        #expect(taskID.count == 32)
+        #expect(!taskID.contains("-"))
         let parameters = try #require(runPayload["parameters"] as? [String: Any])
         #expect(parameters["voice"] as? String == "longanlingxin")
+        #expect(parameters["seed"] as? Int == 0)
+        #expect(parameters["type"] as? Int == 0)
         #expect(parameters["language_hints"] as? [String] == ["en"])
+    }
+
+    @Test
+    func connectsBeforeSendingRunTask() async throws {
+        let task = QwenTTSStubTask(
+            messages: [
+                .string(#"{"header":{"event":"task-started"}}"#),
+                .data(Data([0x49, 0x44, 0x33])),
+                .string(#"{"header":{"event":"task-finished"}}"#)
+            ]
+        )
+        let provider = QwenTTSProvider(
+            configuration: QwenConfiguration(
+                apiKey: "qwen-tts-key",
+                model: .v38Max,
+                region: .china
+            ),
+            webSocketSession: QwenTTSStubSession(task: task)
+        )
+
+        _ = try await provider.synthesize(
+            TTSRequest(text: "hello", language: .english)
+        )
+
+        #expect(task.didConnect)
+        #expect(task.didSendOnlyAfterConnecting)
+    }
+
+    @Test
+    func explainsRejectedWebSocketHandshake() async {
+        let task = QwenTTSStubTask(
+            connectError: NSError(
+                domain: NSURLErrorDomain,
+                code: NSURLErrorBadServerResponse
+            ),
+            messages: []
+        )
+        let provider = QwenTTSProvider(
+            configuration: QwenConfiguration(
+                apiKey: "qwen-tts-key",
+                model: .v38Max,
+                region: .international
+            ),
+            webSocketSession: QwenTTSStubSession(task: task)
+        )
+
+        await #expect(
+            throws: TTSProviderError.service(
+                provider: "Qwen Token Plan",
+                message: "WebSocket 握手被服务端拒绝。请确认使用 Token Plan 专用 Key（通常以 sk-sp- 开头），并在 API Key 设置中测试连接"
+            )
+        ) {
+            try await provider.synthesize(
+                TTSRequest(text: "hello", language: .english)
+            )
+        }
     }
 
     private func decodeObject(_ message: TTSWebSocketMessage) throws -> [String: Any] {
@@ -86,18 +151,28 @@ private final class QwenTTSStubSession: TTSWebSocketSession, @unchecked Sendable
 private final class QwenTTSStubTask: TTSWebSocketTask, @unchecked Sendable {
     private var messages: [TTSWebSocketMessage]
     private(set) var sentMessages: [TTSWebSocketMessage] = []
-    private(set) var didResume = false
+    private(set) var didConnect = false
     private(set) var didCancel = false
+    private(set) var didSendOnlyAfterConnecting = true
+    private let connectError: Error?
 
-    init(messages: [TTSWebSocketMessage]) {
+    init(connectError: Error? = nil, messages: [TTSWebSocketMessage]) {
+        self.connectError = connectError
         self.messages = messages
     }
 
-    func resume() {
-        didResume = true
+    func connect() async throws {
+        if let connectError {
+            throw connectError
+        }
+        didConnect = true
     }
 
     func send(_ message: TTSWebSocketMessage) async throws {
+        if !didConnect {
+            didSendOnlyAfterConnecting = false
+            throw QwenTTSStubError.notConnected
+        }
         sentMessages.append(message)
     }
 
@@ -115,5 +190,6 @@ private final class QwenTTSStubTask: TTSWebSocketTask, @unchecked Sendable {
 
 private enum QwenTTSStubError: Error {
     case noMoreMessages
+    case notConnected
     case unexpectedMessage
 }
