@@ -24,7 +24,7 @@ struct TranslationPanelView: View {
         .background(panelBackground)
         .preferredColorScheme(appearanceStore.appearance.colorScheme)
         .onAppear {
-            inputFocused = true
+            inputFocused = !viewModel.isScreenshotInput
         }
         .onChange(of: viewModel.inputText) { _, _ in
             viewModel.inputDidChange()
@@ -58,7 +58,7 @@ struct TranslationPanelView: View {
             .frame(width: 34, height: 34)
 
             VStack(alignment: .leading, spacing: 1) {
-                Text("翻译浮窗")
+                Text(viewModel.isScreenshotInput ? "截图翻译" : "翻译浮窗")
                     .font(.headline)
                 Text("Translatora")
                     .font(.caption)
@@ -67,7 +67,7 @@ struct TranslationPanelView: View {
 
             Spacer()
 
-            Text(shortcutStore.translationShortcut?.spacedDisplayName ?? "未设置")
+            Text(activeShortcut?.spacedDisplayName ?? "未设置")
                 .font(.caption.monospaced())
                 .foregroundStyle(mutedColor)
                 .padding(.horizontal, 10)
@@ -90,18 +90,33 @@ struct TranslationPanelView: View {
 
     private var languageBar: some View {
         HStack(spacing: 10) {
-            languagePicker(title: "源语言", selection: $viewModel.sourceLanguage)
-
-            Button {
-                viewModel.swapLanguages()
-            } label: {
-                Image(systemName: "arrow.left.arrow.right")
-                    .frame(width: 24, height: 24)
-                    .foregroundStyle(.primary)
+            if viewModel.isScreenshotInput {
+                Label("自动识别", systemImage: "viewfinder")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 7)
+                    .background(.primary.opacity(0.045), in: .rect(cornerRadius: 8))
+            } else {
+                languagePicker(title: "源语言", selection: $viewModel.sourceLanguage)
             }
-            .buttonStyle(AppIconButtonStyle())
-            .disabled(viewModel.phase == .loading)
-            .help("交换语言")
+
+            if viewModel.isScreenshotInput {
+                Image(systemName: "arrow.right")
+                    .frame(width: 24, height: 24)
+                    .foregroundStyle(.tertiary)
+            } else {
+                Button {
+                    viewModel.swapLanguages()
+                } label: {
+                    Image(systemName: "arrow.left.arrow.right")
+                        .frame(width: 24, height: 24)
+                        .foregroundStyle(.primary)
+                }
+                .buttonStyle(AppIconButtonStyle())
+                .disabled(viewModel.phase == .loading)
+                .help("交换语言")
+            }
 
             languagePicker(title: "目标语言", selection: $viewModel.targetLanguage)
         }
@@ -121,39 +136,81 @@ struct TranslationPanelView: View {
         .frame(maxWidth: .infinity)
     }
 
+    @ViewBuilder
     private var inputArea: some View {
-        HStack(alignment: .bottom, spacing: 14) {
-            TextField("输入要翻译的文本…", text: $viewModel.inputText, axis: .vertical)
-                .textFieldStyle(.plain)
-                .font(.system(size: 16))
-                .lineLimit(3...6)
-                .focused($inputFocused)
-                .onSubmit {
-                    viewModel.translate()
+        if let imageData = viewModel.screenshotImageData,
+           let image = NSImage(data: imageData) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Label("截图输入", systemImage: "photo.on.rectangle.angled")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(AppTheme.accentDeep)
+
+                    Spacer()
+
+                    Button {
+                        viewModel.translate()
+                    } label: {
+                        Label(
+                            viewModel.phase == .idle ? "翻译" : "重新翻译",
+                            systemImage: "arrow.up"
+                        )
+                    }
+                    .buttonStyle(AppButtonStyle())
+                    .disabled(!viewModel.canTranslate)
+                    .help("翻译截图")
                 }
 
-            Button {
-                viewModel.translate()
-            } label: {
-                Image(systemName: "arrow.up")
-                    .font(.system(size: 16, weight: .bold))
-                    .frame(width: 26, height: 26)
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity, maxHeight: 158)
+                    .clipShape(.rect(cornerRadius: 11))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 11, style: .continuous)
+                            .stroke(.white.opacity(0.18), lineWidth: 1)
+                    }
             }
-            .buttonStyle(AppAccentCircleButtonStyle())
-            .disabled(!viewModel.canTranslate)
-            .keyboardShortcut(.return, modifiers: [])
-            .help("翻译 (Return)")
-        }
-        .padding(16)
-        .background(AppTheme.raisedSurface, in: .rect(cornerRadius: 16))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(
-                    inputFocused
-                        ? AppTheme.accentDeep.opacity(0.5)
-                        : Color.primary.opacity(0.1),
-                    lineWidth: inputFocused ? 1.5 : 1
-                )
+            .padding(14)
+            .background(AppTheme.raisedSurface, in: .rect(cornerRadius: 16))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(AppTheme.accentDeep.opacity(0.22), lineWidth: 1)
+            }
+        } else {
+            HStack(alignment: .bottom, spacing: 14) {
+                TextField("输入要翻译的文本…", text: $viewModel.inputText, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 16))
+                    .lineLimit(3...6)
+                    .focused($inputFocused)
+                    .onSubmit {
+                        viewModel.translate()
+                    }
+
+                Button {
+                    viewModel.translate()
+                } label: {
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 16, weight: .bold))
+                        .frame(width: 26, height: 26)
+                }
+                .buttonStyle(AppAccentCircleButtonStyle())
+                .disabled(!viewModel.canTranslate)
+                .keyboardShortcut(.return, modifiers: [])
+                .help("翻译 (Return)")
+            }
+            .padding(16)
+            .background(AppTheme.raisedSurface, in: .rect(cornerRadius: 16))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(
+                        inputFocused
+                            ? AppTheme.accentDeep.opacity(0.5)
+                            : Color.primary.opacity(0.1),
+                        lineWidth: inputFocused ? 1.5 : 1
+                    )
+            }
         }
     }
 
@@ -193,7 +250,9 @@ struct TranslationPanelView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text("正在理解并翻译")
                     .font(.subheadline.weight(.medium))
-                Text("模型正在组织自然的表达与例句…")
+                Text(viewModel.isScreenshotInput
+                     ? "模型正在按画面顺序识别、理解并翻译文字…"
+                     : "模型正在组织自然的表达与例句…")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -213,25 +272,38 @@ struct TranslationPanelView: View {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Text("翻译结果")
+                        Text(viewModel.isScreenshotInput ? "截图总结" : "翻译结果")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(AppTheme.accentDeep)
 
                         Spacer()
 
-                        PronunciationButton(
-                            service: pronunciationService,
-                            text: viewModel.inputText,
-                            language: viewModel.sourceLanguage
-                        )
+                        if !viewModel.isScreenshotInput {
+                            PronunciationButton(
+                                service: pronunciationService,
+                                text: viewModel.inputText,
+                                language: viewModel.sourceLanguage
+                            )
+                        }
                     }
                     Text(result.translation)
-                        .font(.system(size: 20, weight: .medium))
+                        .font(.system(
+                            size: viewModel.isScreenshotInput ? 16 : 20,
+                            weight: .medium
+                        ))
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-                if !result.examples.isEmpty {
+                if let screenshotTranslation = result.screenshotTranslation,
+                   !screenshotTranslation.elements.isEmpty {
+                    Divider()
+                        .opacity(0.55)
+
+                    screenshotElementsView(screenshotTranslation.elements)
+                }
+
+                if !viewModel.isScreenshotInput, !result.examples.isEmpty {
                     Divider()
                         .opacity(0.55)
 
@@ -287,6 +359,49 @@ struct TranslationPanelView: View {
         }
     }
 
+    private func screenshotElementsView(
+        _ elements: [ScreenshotTranslationElement]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("文字元素 · \(elements.count)", systemImage: "text.viewfinder")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(mutedColor)
+
+            ForEach(Array(elements.enumerated()), id: \.element.id) { index, element in
+                VStack(alignment: .leading, spacing: 7) {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("\(index + 1)")
+                            .font(.caption2.monospacedDigit().weight(.bold))
+                            .foregroundStyle(AppTheme.accentDeep)
+                            .frame(width: 20, height: 20)
+                            .background(AppTheme.accent.opacity(0.16), in: .circle)
+
+                        Text(element.context)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Text(element.sourceText)
+                        .font(.subheadline.weight(.medium))
+                        .textSelection(.enabled)
+
+                    Label {
+                        Text(element.translatedText)
+                            .textSelection(.enabled)
+                    } icon: {
+                        Image(systemName: "arrow.turn.down.right")
+                            .foregroundStyle(AppTheme.accentDeep)
+                    }
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                }
+                .padding(13)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.primary.opacity(0.04), in: .rect(cornerRadius: 13))
+            }
+        }
+    }
+
     private func failureView(_ message: String) -> some View {
         HStack(spacing: 12) {
             Image(systemName: "exclamationmark.triangle.fill")
@@ -330,7 +445,16 @@ struct TranslationPanelView: View {
         colorScheme == .dark ? Color.white.opacity(0.68) : Color.secondary
     }
 
+    private var activeShortcut: GlobalShortcut? {
+        viewModel.isScreenshotInput
+            ? shortcutStore.screenshotShortcut
+            : shortcutStore.translationShortcut
+    }
+
     private var idleDescription: String {
+        if viewModel.isScreenshotInput {
+            return "截图会自动识别文字并翻译为\(viewModel.targetLanguage.displayName)"
+        }
         if let shortcut = shortcutStore.translationShortcut {
             return "选中文本后按 \(shortcut.displayName)，可直接开始翻译"
         }

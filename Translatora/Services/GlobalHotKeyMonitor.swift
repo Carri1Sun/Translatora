@@ -18,13 +18,13 @@ enum GlobalHotKeyError: LocalizedError {
 @MainActor
 final class GlobalHotKeyMonitor {
     private static let signature: OSType = 0x5452_4E53 // TRNS
-    private static let identifier: UInt32 = 1
+    private static var nextIdentifier: UInt32 = 1
 
     private var eventHandler: EventHandlerRef?
     private var hotKey: EventHotKeyRef?
     private var action: (() -> Void)?
     private var currentShortcut: GlobalShortcut?
-    private var nextIdentifier = GlobalHotKeyMonitor.identifier
+    private var registeredIdentifier: UInt32?
 
     var isStarted: Bool {
         eventHandler != nil
@@ -43,11 +43,31 @@ final class GlobalHotKeyMonitor {
         )
         let handlerStatus = InstallEventHandler(
             GetApplicationEventTarget(),
-            { _, _, userData in
-                guard let userData else { return OSStatus(eventNotHandledErr) }
+            { _, event, userData in
+                guard let event, let userData else {
+                    return OSStatus(eventNotHandledErr)
+                }
                 let monitor = Unmanaged<GlobalHotKeyMonitor>
                     .fromOpaque(userData)
                     .takeUnretainedValue()
+
+                var hotKeyID = EventHotKeyID(signature: 0, id: 0)
+                let parameterStatus = GetEventParameter(
+                    event,
+                    EventParamName(kEventParamDirectObject),
+                    EventParamType(typeEventHotKeyID),
+                    nil,
+                    MemoryLayout<EventHotKeyID>.size,
+                    nil,
+                    &hotKeyID
+                )
+                guard parameterStatus == noErr else {
+                    return parameterStatus
+                }
+                guard monitor.handles(hotKeyID) else {
+                    return OSStatus(eventNotHandledErr)
+                }
+
                 Task { @MainActor in
                     monitor.performAction()
                 }
@@ -75,9 +95,10 @@ final class GlobalHotKeyMonitor {
     func updateShortcut(_ shortcut: GlobalShortcut) throws {
         guard currentShortcut != shortcut else { return }
 
+        let identifier = Self.allocateIdentifier()
         let hotKeyID = EventHotKeyID(
             signature: Self.signature,
-            id: nextIdentifier
+            id: identifier
         )
         var newHotKey: EventHotKeyRef?
         let registrationStatus = RegisterEventHotKey(
@@ -98,7 +119,7 @@ final class GlobalHotKeyMonitor {
         }
         hotKey = newHotKey
         currentShortcut = shortcut
-        nextIdentifier &+= 1
+        registeredIdentifier = identifier
     }
 
     func stop() {
@@ -112,7 +133,17 @@ final class GlobalHotKeyMonitor {
         }
         action = nil
         currentShortcut = nil
-        nextIdentifier = GlobalHotKeyMonitor.identifier
+        registeredIdentifier = nil
+    }
+
+    private static func allocateIdentifier() -> UInt32 {
+        defer { nextIdentifier &+= 1 }
+        return nextIdentifier
+    }
+
+    private func handles(_ hotKeyID: EventHotKeyID) -> Bool {
+        hotKeyID.signature == Self.signature
+            && hotKeyID.id == registeredIdentifier
     }
 
     private func performAction() {

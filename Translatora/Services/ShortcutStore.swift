@@ -4,6 +4,7 @@ import Foundation
 @MainActor
 final class ShortcutStore: ObservableObject {
     @Published private(set) var translationShortcut: GlobalShortcut?
+    @Published private(set) var screenshotShortcut: GlobalShortcut?
     @Published private(set) var saveShortcut: GlobalShortcut?
 
     private let defaults: UserDefaults
@@ -17,16 +18,27 @@ final class ShortcutStore: ObservableObject {
            let configuration = try? JSONDecoder().decode(
                ShortcutConfiguration.self,
                from: data
-           ) {
-            translationShortcut = Self.validated(configuration.translationShortcut)
-            saveShortcut = Self.validated(configuration.saveShortcut)
+            ) {
+            let translationShortcut = Self.validated(configuration.translationShortcut)
+            let saveShortcut = Self.validated(configuration.saveShortcut)
+            let screenshotShortcut = Self.validated(configuration.screenshotShortcut)
+            self.translationShortcut = translationShortcut
+            self.saveShortcut = saveShortcut
+            self.screenshotShortcut = screenshotShortcut == translationShortcut
+                || screenshotShortcut == saveShortcut
+                ? nil
+                : screenshotShortcut
         } else if let data = defaults.data(forKey: legacyTranslationKey),
                   let savedShortcut = try? JSONDecoder().decode(GlobalShortcut.self, from: data),
                   Self.validated(savedShortcut) != nil {
             translationShortcut = savedShortcut
+            screenshotShortcut = savedShortcut == .screenshotDefault
+                ? nil
+                : .screenshotDefault
             saveShortcut = nil
         } else {
             translationShortcut = .default
+            screenshotShortcut = .screenshotDefault
             saveShortcut = nil
         }
     }
@@ -43,9 +55,16 @@ final class ShortcutStore: ObservableObject {
         persist()
     }
 
+    func setScreenshotShortcut(_ shortcut: GlobalShortcut?) {
+        guard screenshotShortcut != shortcut else { return }
+        screenshotShortcut = shortcut
+        persist()
+    }
+
     private func persist() {
         let configuration = ShortcutConfiguration(
             translationShortcut: translationShortcut,
+            screenshotShortcut: screenshotShortcut,
             saveShortcut: saveShortcut
         )
         guard let data = try? JSONEncoder().encode(configuration) else { return }
@@ -64,5 +83,53 @@ final class ShortcutStore: ObservableObject {
 
 private struct ShortcutConfiguration: Codable {
     let translationShortcut: GlobalShortcut?
+    let screenshotShortcut: GlobalShortcut?
     let saveShortcut: GlobalShortcut?
+
+    init(
+        translationShortcut: GlobalShortcut?,
+        screenshotShortcut: GlobalShortcut?,
+        saveShortcut: GlobalShortcut?
+    ) {
+        self.translationShortcut = translationShortcut
+        self.screenshotShortcut = screenshotShortcut
+        self.saveShortcut = saveShortcut
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case translationShortcut
+        case screenshotShortcut
+        case saveShortcut
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        translationShortcut = try container.decodeIfPresent(
+            GlobalShortcut.self,
+            forKey: .translationShortcut
+        )
+        if container.contains(.screenshotShortcut) {
+            screenshotShortcut = try container.decodeIfPresent(
+                GlobalShortcut.self,
+                forKey: .screenshotShortcut
+            )
+        } else {
+            screenshotShortcut = .screenshotDefault
+        }
+        saveShortcut = try container.decodeIfPresent(
+            GlobalShortcut.self,
+            forKey: .saveShortcut
+        )
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(translationShortcut, forKey: .translationShortcut)
+        if let screenshotShortcut {
+            try container.encode(screenshotShortcut, forKey: .screenshotShortcut)
+        } else {
+            try container.encodeNil(forKey: .screenshotShortcut)
+        }
+        try container.encodeIfPresent(saveShortcut, forKey: .saveShortcut)
+    }
 }

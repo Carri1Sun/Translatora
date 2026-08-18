@@ -38,6 +38,21 @@ struct RenderingSmokeTests {
             targetLanguage: .simplifiedChinese,
             examples: []
         )
+        try dictionaryStore.add(
+            sourceText: "截图翻译",
+            translatedText: "一页介绍 Translatora 截图翻译能力的产品幻灯片。",
+            sourceLanguage: .english,
+            targetLanguage: .simplifiedChinese,
+            examples: [],
+            sourceImageData: try makeScreenshotData(),
+            screenshotElements: [
+                ScreenshotTranslationElement(
+                    sourceText: "Understand every screen",
+                    translatedText: "理解每一处屏幕内容",
+                    context: "幻灯片主标题"
+                )
+            ]
+        )
 
         let view = DictionaryHomeView(
             dictionaryStore: dictionaryStore,
@@ -126,6 +141,7 @@ struct RenderingSmokeTests {
             shortcutStore: ShortcutStore(defaults: defaults),
             shortcutErrorMessage: nil,
             updateTranslationShortcut: { _ in true },
+            updateScreenshotShortcut: { _ in true },
             updateSaveShortcut: { _ in true },
             selectedTextReader: SelectedTextReader(),
             onClose: {}
@@ -234,6 +250,49 @@ struct RenderingSmokeTests {
         try pngData.write(to: URL(filePath: "/tmp/translatora-panel-render.png"), options: .atomic)
     }
 
+    @Test
+    func rendersScreenshotTranslationResultPanel() async throws {
+        let dictionaryStore = DictionaryStore(
+            fileURL: FileManager.default.temporaryDirectory.appending(
+                path: "TranslatoraScreenshotRender-\(UUID().uuidString).json"
+            )
+        )
+        let viewModel = TranslationPanelViewModel(
+            translationService: TranslationService(
+                modelProvider: ScreenshotRenderCompleter()
+            ),
+            dictionaryStore: dictionaryStore
+        )
+        viewModel.prepare(screenshotImageData: try makeScreenshotData())
+        viewModel.translateAutomaticallyIfNeeded()
+
+        while viewModel.phase == .loading {
+            await Task.yield()
+        }
+
+        let view = TranslationPanelView(
+            viewModel: viewModel,
+            appearanceStore: AppearanceStore(
+                defaults: UserDefaults(suiteName: "TranslatoraRender.ScreenshotAppearance")!
+            ),
+            shortcutStore: ShortcutStore(
+                defaults: UserDefaults(suiteName: "TranslatoraRender.ScreenshotShortcut")!
+            ),
+            pronunciationService: makePronunciationService("ScreenshotPanel"),
+            onClose: {},
+            onSaved: { _ in }
+        )
+        .preferredColorScheme(.light)
+        .frame(width: 640, height: 720)
+
+        let pngData = try render(view, size: NSSize(width: 640, height: 720))
+        #expect(pngData.count > 10_000)
+        try pngData.write(
+            to: URL(filePath: "/tmp/translatora-screenshot-panel-render.png"),
+            options: .atomic
+        )
+    }
+
     private func render<Content: View>(
         _ content: Content,
         size: NSSize
@@ -264,6 +323,51 @@ struct RenderingSmokeTests {
             )
         )
     }
+
+    private func makeScreenshotData() throws -> Data {
+        guard let bitmap = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: 960,
+            pixelsHigh: 540,
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .deviceRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0
+        ), let context = NSGraphicsContext(bitmapImageRep: bitmap) else {
+            throw RenderingError.bitmapUnavailable
+        }
+
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = context
+        NSColor(calibratedRed: 0.08, green: 0.12, blue: 0.1, alpha: 1).setFill()
+        NSRect(x: 0, y: 0, width: 960, height: 540).fill()
+        NSColor(calibratedRed: 0.62, green: 0.9, blue: 0.56, alpha: 1).setFill()
+        NSRect(x: 74, y: 78, width: 10, height: 384).fill()
+
+        NSString(string: "Understand every screen").draw(
+            at: NSPoint(x: 120, y: 310),
+            withAttributes: [
+                .font: NSFont.systemFont(ofSize: 54, weight: .bold),
+                .foregroundColor: NSColor.white
+            ]
+        )
+        NSString(string: "Capture · Translate · Remember").draw(
+            at: NSPoint(x: 122, y: 246),
+            withAttributes: [
+                .font: NSFont.systemFont(ofSize: 26, weight: .medium),
+                .foregroundColor: NSColor.white.withAlphaComponent(0.68)
+            ]
+        )
+        NSGraphicsContext.restoreGraphicsState()
+
+        guard let data = bitmap.representation(using: .png, properties: [:]) else {
+            throw RenderingError.pngUnavailable
+        }
+        return data
+    }
 }
 
 @MainActor
@@ -274,6 +378,20 @@ private struct RenderCompleter: LanguageModelCompleting {
             {"translation":"早起的鸟儿有虫吃。","examples":[{"source":"She starts work at dawn—the early bird catches the worm.","translation":"她黎明就开始工作——早起的鸟儿有虫吃。"}]}
             """,
             model: "render-stub"
+        )
+    }
+}
+
+@MainActor
+private struct ScreenshotRenderCompleter: LanguageModelCompleting {
+    let supportsImageInput = true
+
+    func complete(_ request: LLMRequest) async throws -> LLMResponse {
+        LLMResponse(
+            content: """
+            {"summary":"这是一页介绍截图理解、翻译和收藏流程的产品幻灯片。","elements":[{"sourceText":"Understand every screen","translatedText":"理解每一处屏幕内容","context":"画面中部的主标题"},{"sourceText":"Capture · Translate · Remember","translatedText":"截图 · 翻译 · 记忆","context":"主标题下方的功能流程说明"}]}
+            """,
+            model: "screenshot-render-stub"
         )
     }
 }

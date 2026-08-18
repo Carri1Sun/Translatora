@@ -51,9 +51,52 @@ struct TranslationExample: Codable, Equatable, Identifiable, Sendable {
     }
 }
 
+struct ScreenshotTranslationElement: Codable, Equatable, Identifiable, Sendable {
+    var id: UUID
+    var sourceText: String
+    var translatedText: String
+    var context: String
+
+    init(
+        id: UUID = UUID(),
+        sourceText: String,
+        translatedText: String,
+        context: String
+    ) {
+        self.id = id
+        self.sourceText = sourceText
+        self.translatedText = translatedText
+        self.context = context
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = (try? container.decode(UUID.self, forKey: .id)) ?? UUID()
+        sourceText = try container.decode(String.self, forKey: .sourceText)
+        translatedText = try container.decode(String.self, forKey: .translatedText)
+        context = (try? container.decode(String.self, forKey: .context)) ?? ""
+    }
+}
+
+struct ScreenshotTranslation: Equatable, Sendable {
+    var summary: String
+    var elements: [ScreenshotTranslationElement]
+}
+
 struct TranslationResult: Equatable, Sendable {
     var translation: String
     var examples: [TranslationExample]
+    var screenshotTranslation: ScreenshotTranslation?
+
+    init(
+        translation: String,
+        examples: [TranslationExample],
+        screenshotTranslation: ScreenshotTranslation? = nil
+    ) {
+        self.translation = translation
+        self.examples = examples
+        self.screenshotTranslation = screenshotTranslation
+    }
 }
 
 struct DictionaryEntry: Codable, Equatable, Identifiable, Sendable {
@@ -64,6 +107,8 @@ struct DictionaryEntry: Codable, Equatable, Identifiable, Sendable {
     var sourceLanguage: TranslationLanguage
     var targetLanguage: TranslationLanguage
     var examples: [TranslationExample]
+    var sourceImageData: Data?
+    var screenshotElements: [ScreenshotTranslationElement]
     var createdAt: Date
     var updatedAt: Date
 
@@ -75,6 +120,8 @@ struct DictionaryEntry: Codable, Equatable, Identifiable, Sendable {
         sourceLanguage: TranslationLanguage,
         targetLanguage: TranslationLanguage,
         examples: [TranslationExample] = [],
+        sourceImageData: Data? = nil,
+        screenshotElements: [ScreenshotTranslationElement] = [],
         createdAt: Date = .now,
         updatedAt: Date = .now
     ) {
@@ -85,6 +132,8 @@ struct DictionaryEntry: Codable, Equatable, Identifiable, Sendable {
         self.sourceLanguage = sourceLanguage
         self.targetLanguage = targetLanguage
         self.examples = examples
+        self.sourceImageData = sourceImageData
+        self.screenshotElements = screenshotElements
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -107,7 +156,16 @@ struct DictionaryEntry: Codable, Equatable, Identifiable, Sendable {
             [TranslationExample].self,
             forKey: .examples
         )) ?? []
+        sourceImageData = try? container.decodeIfPresent(Data.self, forKey: .sourceImageData)
+        screenshotElements = (try? container.decode(
+            [ScreenshotTranslationElement].self,
+            forKey: .screenshotElements
+        )) ?? []
         createdAt = (try? container.decode(Date.self, forKey: .createdAt)) ?? .distantPast
         updatedAt = (try? container.decode(Date.self, forKey: .updatedAt)) ?? createdAt
+    }
+
+    var isScreenshotTranslation: Bool {
+        sourceImageData != nil
     }
 }

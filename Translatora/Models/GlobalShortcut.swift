@@ -52,6 +52,12 @@ struct GlobalShortcut: Codable, Equatable, Hashable, Sendable {
         modifiers: [.command, .shift]
     )
 
+    static let screenshotDefault = GlobalShortcut(
+        keyCode: UInt32(kVK_ANSI_2),
+        keyDisplayName: "2",
+        modifiers: [.command, .shift]
+    )
+
     var displayName: String {
         modifiers.displayName + keyDisplayName
     }

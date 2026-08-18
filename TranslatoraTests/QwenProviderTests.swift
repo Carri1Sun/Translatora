@@ -91,6 +91,55 @@ struct QwenProviderTests {
     }
 
     @Test
+    func encodesImageInputAsOpenAICompatibleContentParts() async throws {
+        let session = QwenStubSession(
+            statusCode: 200,
+            responseData: Data(
+                """
+                {
+                  "model": "qwen3.6-flash",
+                  "choices": [{"message": {"role": "assistant", "content": "OK"}}]
+                }
+                """.utf8
+            )
+        )
+        let provider = QwenProvider(
+            configuration: QwenConfiguration(
+                apiKey: "token-plan-key",
+                model: .v36Flash,
+                region: .international
+            ),
+            session: session
+        )
+
+        _ = try await provider.complete(
+            LLMRequest(
+                messages: [
+                    LLMMessage(
+                        role: .user,
+                        content: "Describe this screenshot.",
+                        imageDataURL: "data:image/png;base64,iVBORw0KGgo="
+                    )
+                ]
+            )
+        )
+
+        let request = try #require(await session.lastRequest)
+        let bodyData = try #require(request.httpBody)
+        let body = try #require(
+            JSONSerialization.jsonObject(with: bodyData) as? [String: Any]
+        )
+        let messages = try #require(body["messages"] as? [[String: Any]])
+        let content = try #require(messages.first?["content"] as? [[String: Any]])
+        #expect(content.count == 2)
+        #expect(content.first?["type"] as? String == "image_url")
+        let imageURL = try #require(content.first?["image_url"] as? [String: String])
+        #expect(imageURL["url"] == "data:image/png;base64,iVBORw0KGgo=")
+        #expect(content.last?["type"] as? String == "text")
+        #expect(content.last?["text"] as? String == "Describe this screenshot.")
+    }
+
+    @Test
     func rejectsMissingAPIKeyBeforeSendingRequest() async {
         let session = QwenStubSession(statusCode: 200, responseData: Data())
         let provider = QwenProvider(configuration: .empty, session: session)

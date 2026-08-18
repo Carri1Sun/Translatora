@@ -332,6 +332,7 @@ struct DictionaryHomeView: View {
                     shortcutStore: dependencies.shortcutStore,
                     shortcutErrorMessage: dependencies.shortcutErrorMessage,
                     updateTranslationShortcut: dependencies.updateTranslationShortcut,
+                    updateScreenshotShortcut: dependencies.updateScreenshotShortcut,
                     updateSaveShortcut: dependencies.updateSaveShortcut,
                     selectedTextReader: dependencies.selectedTextReader,
                     onClose: dependencies.dismissSettings
@@ -505,10 +506,34 @@ private struct DictionaryCardView: View {
     var body: some View {
         Button(action: onOpen) {
             VStack(alignment: .leading, spacing: 12) {
-                Text(entry.sourceText)
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
-                    .lineLimit(3)
+                if let imageData = entry.sourceImageData,
+                   let image = NSImage(data: imageData) {
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 108)
+                        .clipped()
+                        .clipShape(.rect(cornerRadius: 11))
+                        .overlay(alignment: .bottomLeading) {
+                            Label("截图翻译", systemImage: "viewfinder")
+                                .font(.caption2.weight(.semibold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 5)
+                                .background(.black.opacity(0.62), in: .capsule)
+                                .padding(8)
+                        }
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                                .stroke(.primary.opacity(0.1), lineWidth: 1)
+                        }
+                } else {
+                    Text(entry.sourceText)
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
+                        .lineLimit(3)
+                }
 
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                     Text(entry.translatedText)

@@ -75,6 +75,10 @@ private struct TranslatoraCommands: Commands {
             Button(translationPanelCommandTitle) {
                 dependencies.toggleTranslationPanel()
             }
+
+            Button(screenshotCommandTitle) {
+                dependencies.toggleScreenshotTranslation()
+            }
         }
     }
 
@@ -93,6 +97,13 @@ private struct TranslatoraCommands: Commands {
         }
         return "翻译浮窗（\(shortcut.displayName)）"
     }
+
+    private var screenshotCommandTitle: String {
+        guard let shortcut = dependencies.shortcutStore.screenshotShortcut else {
+            return "截图翻译"
+        }
+        return "截图翻译（\(shortcut.displayName)）"
+    }
 }
 
 private struct TranslatoraMenuBar: View {
@@ -102,6 +113,10 @@ private struct TranslatoraMenuBar: View {
     var body: some View {
         Button("打开翻译浮窗") {
             dependencies.toggleTranslationPanel()
+        }
+
+        Button("截图翻译") {
+            dependencies.toggleScreenshotTranslation()
         }
 
         Button("打开应用首页") {

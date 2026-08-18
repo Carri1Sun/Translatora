@@ -40,6 +40,7 @@ struct SettingsCardView: View {
     @ObservedObject var shortcutStore: ShortcutStore
     let shortcutErrorMessage: String?
     let updateTranslationShortcut: (GlobalShortcut?) -> Bool
+    let updateScreenshotShortcut: (GlobalShortcut?) -> Bool
     let updateSaveShortcut: (GlobalShortcut?) -> Bool
     let selectedTextReader: SelectedTextReader
     let onClose: () -> Void
@@ -100,6 +101,7 @@ struct SettingsCardView: View {
                 shortcutStore: shortcutStore,
                 shortcutErrorMessage: shortcutErrorMessage,
                 updateTranslationShortcut: updateTranslationShortcut,
+                updateScreenshotShortcut: updateScreenshotShortcut,
                 updateSaveShortcut: updateSaveShortcut,
                 selectedTextReader: selectedTextReader,
                 pronunciationCache: pronunciationCache

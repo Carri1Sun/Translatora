@@ -60,14 +60,18 @@ final class DictionaryStore: ObservableObject {
         translatedText: String,
         sourceLanguage: TranslationLanguage,
         targetLanguage: TranslationLanguage,
-        examples: [TranslationExample]
+        examples: [TranslationExample],
+        sourceImageData: Data? = nil,
+        screenshotElements: [ScreenshotTranslationElement] = []
     ) throws -> DictionaryEntry {
         let entry = DictionaryEntry(
             sourceText: sourceText,
             translatedText: translatedText,
             sourceLanguage: sourceLanguage,
             targetLanguage: targetLanguage,
-            examples: examples
+            examples: examples,
+            sourceImageData: sourceImageData,
+            screenshotElements: screenshotElements
         )
         var updatedEntries = entries
         updatedEntries.insert(entry, at: 0)
@@ -270,11 +274,13 @@ private struct DictionaryEntryIdentity: Hashable {
     let translatedText: String
     let sourceLanguage: TranslationLanguage
     let targetLanguage: TranslationLanguage
+    let sourceImageData: Data?
 
     init(entry: DictionaryEntry) {
         sourceText = entry.sourceText
         translatedText = entry.translatedText
         sourceLanguage = entry.sourceLanguage
         targetLanguage = entry.targetLanguage
+        sourceImageData = entry.sourceImageData
     }
 }

@@ -109,6 +109,23 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
         }
     }
 
+    func show(screenshotImageData: Data) {
+        savedToastController.dismiss()
+        selectionReadGeneration += 1
+        selectionReadTask?.cancel()
+        selectionReadTask = nil
+
+        viewModel.prepare(screenshotImageData: screenshotImageData)
+        restorePlacement()
+        updateResizable(for: .idle)
+        panel.makeKeyAndOrderFront(nil)
+
+        Task { [weak self] in
+            await Task.yield()
+            self?.viewModel.translateAutomaticallyIfNeeded()
+        }
+    }
+
     func close() {
         if panel.isVisible {
             constrainAndPersist(animate: false)
@@ -225,10 +242,16 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
 
         let preferredHeight: CGFloat
         switch phase {
-        case .idle: preferredHeight = 350
-        case .loading, .failure: preferredHeight = 430
+        case .idle:
+            preferredHeight = viewModel.isScreenshotInput ? 520 : 350
+        case .loading, .failure:
+            preferredHeight = viewModel.isScreenshotInput ? 610 : 430
         case let .result(result):
-            preferredHeight = result.examples.isEmpty ? 500 : 650
+            if viewModel.isScreenshotInput {
+                preferredHeight = 720
+            } else {
+                preferredHeight = result.examples.isEmpty ? 500 : 650
+            }
         }
 
         let availableHeight = panel.screen?.visibleFrame.height ?? 760

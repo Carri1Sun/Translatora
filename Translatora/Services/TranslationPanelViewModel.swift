@@ -20,6 +20,7 @@ final class TranslationPanelViewModel: ObservableObject {
     @Published var inputText = ""
     @Published var sourceLanguage = TranslationLanguage.english
     @Published var targetLanguage = TranslationLanguage.simplifiedChinese
+    @Published private(set) var screenshotImageData: Data?
     @Published private(set) var phase = TranslationPhase.idle
     @Published private(set) var isSaved = false
     @Published private(set) var saveErrorMessage: String?
@@ -37,7 +38,11 @@ final class TranslationPanelViewModel: ObservableObject {
     }
 
     var canTranslate: Bool {
-        !normalizedInput.isEmpty && phase != .loading
+        (screenshotImageData != nil || !normalizedInput.isEmpty) && phase != .loading
+    }
+
+    var isScreenshotInput: Bool {
+        screenshotImageData != nil
     }
 
     var result: TranslationResult? {
@@ -50,14 +55,23 @@ final class TranslationPanelViewModel: ObservableObject {
         inputText = selectedText ?? ""
     }
 
+    func prepare(screenshotImageData: Data) {
+        reset()
+        self.screenshotImageData = screenshotImageData
+    }
+
     func translateAutomaticallyIfNeeded() {
-        guard !normalizedInput.isEmpty else { return }
+        guard screenshotImageData != nil || !normalizedInput.isEmpty else { return }
         translate()
     }
 
     func translate() {
         let text = normalizedInput
-        guard !text.isEmpty, phase != .loading else { return }
+        let screenshotImageData = screenshotImageData
+        guard screenshotImageData != nil || !text.isEmpty,
+              phase != .loading else {
+            return
+        }
 
         translationTask?.cancel()
         isSaved = false
@@ -69,11 +83,19 @@ final class TranslationPanelViewModel: ObservableObject {
         translationTask = Task { [weak self] in
             guard let self else { return }
             do {
-                let result = try await translationService.translate(
-                    text,
-                    from: sourceLanguage,
-                    to: targetLanguage
-                )
+                let result: TranslationResult
+                if let screenshotImageData {
+                    result = try await translationService.translateScreenshot(
+                        imageData: screenshotImageData,
+                        to: targetLanguage
+                    )
+                } else {
+                    result = try await translationService.translate(
+                        text,
+                        from: sourceLanguage,
+                        to: targetLanguage
+                    )
+                }
                 try Task.checkCancellation()
                 guard !result.translation.isEmpty else {
                     phase = .failure("模型没有返回翻译内容")
@@ -94,11 +116,13 @@ final class TranslationPanelViewModel: ObservableObject {
 
         do {
             let entry = try dictionaryStore.add(
-                sourceText: normalizedInput,
+                sourceText: screenshotImageData == nil ? normalizedInput : "截图翻译",
                 translatedText: result.translation,
                 sourceLanguage: sourceLanguage,
                 targetLanguage: targetLanguage,
-                examples: result.examples
+                examples: result.examples,
+                sourceImageData: screenshotImageData,
+                screenshotElements: result.screenshotTranslation?.elements ?? []
             )
             isSaved = true
             saveErrorMessage = nil
@@ -110,7 +134,7 @@ final class TranslationPanelViewModel: ObservableObject {
     }
 
     func swapLanguages() {
-        guard phase != .loading else { return }
+        guard phase != .loading, screenshotImageData == nil else { return }
         (sourceLanguage, targetLanguage) = (targetLanguage, sourceLanguage)
         if let result {
             inputText = result.translation
@@ -135,6 +159,7 @@ final class TranslationPanelViewModel: ObservableObject {
         translationTask?.cancel()
         translationTask = nil
         inputText = ""
+        screenshotImageData = nil
         phase = .idle
         isSaved = false
         saveErrorMessage = nil

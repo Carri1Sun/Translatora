@@ -20,7 +20,10 @@ final class AppDependencies: ObservableObject {
     @Published private(set) var requestedDictionaryEntryID: UUID?
 
     private var translationPanelController: TranslationPanelController?
-    private var globalHotKeyMonitor: GlobalHotKeyMonitor?
+    private var translationHotKeyMonitor: GlobalHotKeyMonitor?
+    private var screenshotHotKeyMonitor: GlobalHotKeyMonitor?
+    private let screenshotSelectionController = ScreenshotSelectionController()
+    private let centerToastController = CenterToastController()
     private let mainWindowController = MainWindowController()
     private var appearanceCancellable: AnyCancellable?
     private var menuBarCancellable: AnyCancellable?
@@ -91,14 +94,26 @@ final class AppDependencies: ObservableObject {
         )
         translationPanelController = panelController
 
-        let monitor = GlobalHotKeyMonitor()
-        globalHotKeyMonitor = monitor
+        let translationMonitor = GlobalHotKeyMonitor()
+        translationHotKeyMonitor = translationMonitor
         if let shortcut = shortcutStore.translationShortcut {
             do {
-                try monitor.start(shortcut: shortcut) { [weak panelController] in
+                try translationMonitor.start(shortcut: shortcut) { [weak panelController] in
                     panelController?.toggle()
                 }
                 shortcutErrorMessage = nil
+            } catch {
+                shortcutErrorMessage = error.localizedDescription
+            }
+        }
+
+        let screenshotMonitor = GlobalHotKeyMonitor()
+        screenshotHotKeyMonitor = screenshotMonitor
+        if let shortcut = shortcutStore.screenshotShortcut {
+            do {
+                try screenshotMonitor.start(shortcut: shortcut) { [weak self] in
+                    self?.toggleScreenshotTranslation()
+                }
             } catch {
                 shortcutErrorMessage = error.localizedDescription
             }
@@ -110,6 +125,32 @@ final class AppDependencies: ObservableObject {
             start()
         }
         translationPanelController?.toggle()
+    }
+
+    func toggleScreenshotTranslation() {
+        if !hasStarted {
+            start()
+        }
+
+        if screenshotSelectionController.isSelecting {
+            screenshotSelectionController.cancel()
+            return
+        }
+
+        guard languageModelProvider.supportsImageInput else {
+            centerToastController.show(message: "当前模型不支持截图翻译")
+            return
+        }
+
+        translationPanelController?.close()
+        screenshotSelectionController.start(
+            onCaptured: { [weak self] imageData in
+                self?.translationPanelController?.show(screenshotImageData: imageData)
+            },
+            onError: { [weak self] message in
+                self?.centerToastController.show(message: message)
+            }
+        )
     }
 
     func attachMainWindow(_ window: NSWindow) {
@@ -135,12 +176,15 @@ final class AppDependencies: ObservableObject {
             start()
         }
 
-        if let shortcut, shortcut == shortcutStore.saveShortcut {
-            shortcutErrorMessage = "该快捷键已用于保存词汇，请先修改另一项快捷键。"
+        if let conflict = shortcutConflict(
+            for: shortcut,
+            excluding: .translation
+        ) {
+            shortcutErrorMessage = conflict
             return false
         }
 
-        guard let monitor = globalHotKeyMonitor else {
+        guard let monitor = translationHotKeyMonitor else {
             shortcutErrorMessage = "无法初始化全局快捷键监听。"
             return false
         }
@@ -171,9 +215,52 @@ final class AppDependencies: ObservableObject {
     }
 
     @discardableResult
+    func updateScreenshotShortcut(_ shortcut: GlobalShortcut?) -> Bool {
+        if !hasStarted {
+            start()
+        }
+
+        if let conflict = shortcutConflict(
+            for: shortcut,
+            excluding: .screenshot
+        ) {
+            shortcutErrorMessage = conflict
+            return false
+        }
+
+        guard let monitor = screenshotHotKeyMonitor else {
+            shortcutErrorMessage = "无法初始化全局快捷键监听。"
+            return false
+        }
+
+        guard let shortcut else {
+            monitor.stop()
+            shortcutStore.setScreenshotShortcut(nil)
+            shortcutErrorMessage = nil
+            return true
+        }
+
+        do {
+            if monitor.isStarted {
+                try monitor.updateShortcut(shortcut)
+            } else {
+                try monitor.start(shortcut: shortcut) { [weak self] in
+                    self?.toggleScreenshotTranslation()
+                }
+            }
+            shortcutStore.setScreenshotShortcut(shortcut)
+            shortcutErrorMessage = nil
+            return true
+        } catch {
+            shortcutErrorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    @discardableResult
     func updateSaveShortcut(_ shortcut: GlobalShortcut?) -> Bool {
-        if let shortcut, shortcut == shortcutStore.translationShortcut {
-            shortcutErrorMessage = "该快捷键已用于打开翻译浮窗，请先修改另一项快捷键。"
+        if let conflict = shortcutConflict(for: shortcut, excluding: .save) {
+            shortcutErrorMessage = conflict
             return false
         }
 
@@ -190,6 +277,30 @@ final class AppDependencies: ObservableObject {
         isSettingsPresented = false
         requestedDictionaryEntryID = entryID
         _ = showMainWindow()
+    }
+
+    private enum ShortcutPurpose: Equatable {
+        case translation
+        case screenshot
+        case save
+    }
+
+    private func shortcutConflict(
+        for shortcut: GlobalShortcut?,
+        excluding purpose: ShortcutPurpose
+    ) -> String? {
+        guard let shortcut else { return nil }
+
+        if purpose != .translation, shortcut == shortcutStore.translationShortcut {
+            return "该快捷键已用于打开翻译浮窗，请先修改另一项快捷键。"
+        }
+        if purpose != .screenshot, shortcut == shortcutStore.screenshotShortcut {
+            return "该快捷键已用于截图翻译，请先修改另一项快捷键。"
+        }
+        if purpose != .save, shortcut == shortcutStore.saveShortcut {
+            return "该快捷键已用于保存词汇，请先修改另一项快捷键。"
+        }
+        return nil
     }
 
     private func observeAppearanceChanges() {

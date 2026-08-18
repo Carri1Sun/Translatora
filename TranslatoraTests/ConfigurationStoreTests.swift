@@ -74,4 +74,21 @@ struct ConfigurationStoreTests {
         #expect(restoredStore.qwenConfiguration.region == .china)
         #expect(restoredStore.qwenConfiguration.ttsVoice == .longAnLufeng)
     }
+
+    @Test
+    func reportsImageInputCapabilityForSelectedModel() {
+        let suiteName = "ConfigurationStoreTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = ConfigurationStore(defaults: defaults)
+        let router = LanguageModelProviderRouter(configurationStore: store)
+
+        #expect(!router.supportsImageInput)
+
+        store.selectLanguageProvider(.qwen)
+        #expect(router.supportsImageInput)
+
+        store.selectLanguageProvider(.miniMax)
+        #expect(!router.supportsImageInput)
+    }
 }

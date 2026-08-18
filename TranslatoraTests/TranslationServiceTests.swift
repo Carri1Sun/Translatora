@@ -43,15 +43,58 @@ struct TranslationServiceTests {
         #expect(result.translation == "一段普通译文")
         #expect(result.examples.isEmpty)
     }
+
+    @Test
+    func translatesScreenshotIntoOrderedElementsAndSummary() async throws {
+        let completer = StubCompleter(
+            content: """
+            ```json
+            {"summary":"这是一页产品发布幻灯片。","elements":[{"sourceText":"Launch Day","translatedText":"发布日","context":"页面顶部的主标题"},{"sourceText":"Ship with confidence","translatedText":"自信地发布产品","context":"标题下方的副标题"}]}
+            ```
+            """,
+            supportsImageInput: true
+        )
+        let service = TranslationService(modelProvider: completer)
+
+        let result = try await service.translateScreenshot(
+            imageData: Data([0x89, 0x50, 0x4e, 0x47]),
+            to: .simplifiedChinese
+        )
+
+        #expect(result.translation == "这是一页产品发布幻灯片。")
+        #expect(result.screenshotTranslation?.elements.count == 2)
+        #expect(result.screenshotTranslation?.elements.first?.sourceText == "Launch Day")
+        #expect(result.screenshotTranslation?.elements.first?.translatedText == "发布日")
+        let request = try #require(completer.requests.first)
+        #expect(request.messages.last?.imageDataURL?.hasPrefix("data:image/png;base64,") == true)
+        #expect(request.messages.first?.content.contains("Simplified Chinese") == true)
+        #expect(request.maxTokens == 4_000)
+    }
+
+    @Test
+    func rejectsScreenshotForTextOnlyModel() async {
+        let service = TranslationService(modelProvider: StubCompleter(content: "unused"))
+
+        await #expect(
+            throws: LLMProviderError.imageInputUnsupported("当前所选模型")
+        ) {
+            try await service.translateScreenshot(
+                imageData: Data([0x01]),
+                to: .simplifiedChinese
+            )
+        }
+    }
 }
 
 @MainActor
 private final class StubCompleter: LanguageModelCompleting {
     let content: String
+    let supportsImageInput: Bool
     private(set) var requests: [LLMRequest] = []
 
-    init(content: String) {
+    init(content: String, supportsImageInput: Bool = false) {
         self.content = content
+        self.supportsImageInput = supportsImageInput
     }
 
     func complete(_ request: LLMRequest) async throws -> LLMResponse {

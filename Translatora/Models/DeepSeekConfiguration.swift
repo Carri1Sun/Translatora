@@ -23,6 +23,8 @@ enum DeepSeekModel: String, CaseIterable, Codable, Identifiable, Sendable {
             "能力更强，适合复杂文本"
         }
     }
+
+    var supportsImageInput: Bool { false }
 }
 
 struct DeepSeekConfiguration: Equatable, Sendable {

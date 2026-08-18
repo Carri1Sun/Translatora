@@ -62,7 +62,11 @@ struct DictionaryEntryDetailView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     heroSection
                     noteSection
-                    examplesSection
+                    if entry.isScreenshotTranslation {
+                        screenshotElementsSection
+                    } else {
+                        examplesSection
+                    }
                     metadataSection
                 }
                 .padding(.horizontal, 28)
@@ -87,7 +91,7 @@ struct DictionaryEntryDetailView: View {
             .frame(width: 38, height: 38)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("词汇详情")
+                Text(entry.isScreenshotTranslation ? "截图翻译详情" : "词汇详情")
                     .font(.headline)
                 Text("第 \(position) 条，共 \(totalCount) 条")
                     .font(.caption)
@@ -122,27 +126,47 @@ struct DictionaryEntryDetailView: View {
 
     private var heroSection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text(entry.sourceText)
-                    .font(.system(size: 30, weight: .bold, design: .rounded))
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            if let imageData = entry.sourceImageData,
+               let image = NSImage(data: imageData) {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity, maxHeight: 250)
+                    .clipShape(.rect(cornerRadius: 14))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(.primary.opacity(0.12), lineWidth: 1)
+                    }
+            } else {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Text(entry.sourceText)
+                        .font(.system(size: 30, weight: .bold, design: .rounded))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
 
-                PronunciationButton(
-                    service: pronunciationService,
-                    text: entry.sourceText,
-                    language: entry.sourceLanguage
-                )
+                    PronunciationButton(
+                        service: pronunciationService,
+                        text: entry.sourceText,
+                        language: entry.sourceLanguage
+                    )
+                }
             }
 
             Text(entry.translatedText)
-                .font(.system(size: 20, weight: .medium))
+                .font(.system(
+                    size: entry.isScreenshotTranslation ? 17 : 20,
+                    weight: .medium
+                ))
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack(spacing: 8) {
-                languagePill(entry.sourceLanguage.displayName)
+                languagePill(
+                    entry.isScreenshotTranslation
+                        ? "自动识别"
+                        : entry.sourceLanguage.displayName
+                )
                 Image(systemName: "arrow.right")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.tertiary)
@@ -188,6 +212,43 @@ struct DictionaryEntryDetailView: View {
                                 .font(.body.weight(.medium))
                                 .textSelection(.enabled)
                             Text(example.translation)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .textSelection(.enabled)
+                        }
+                        .padding(14)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(.primary.opacity(0.04), in: .rect(cornerRadius: 14))
+                    }
+                }
+            }
+        }
+    }
+
+    private var screenshotElementsSection: some View {
+        detailSection(title: "文字元素", systemImage: "text.viewfinder") {
+            if entry.screenshotElements.isEmpty {
+                Text("未保存单独的文字元素")
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                VStack(spacing: 12) {
+                    ForEach(Array(entry.screenshotElements.enumerated()), id: \.element.id) {
+                        index,
+                        element in
+                        VStack(alignment: .leading, spacing: 7) {
+                            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                Text("\(index + 1)")
+                                    .font(.caption2.monospacedDigit().weight(.bold))
+                                    .foregroundStyle(AppTheme.accentDeep)
+                                Text(element.context)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Text(element.sourceText)
+                                .font(.body.weight(.medium))
+                                .textSelection(.enabled)
+                            Text(element.translatedText)
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                                 .textSelection(.enabled)
@@ -349,16 +410,23 @@ private struct DictionaryEntryEditorView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    languageEditors
-                    editorField(title: "原文", text: $draft.sourceText, minHeight: 88)
-                    editorField(title: "译文", text: $draft.translatedText, minHeight: 88)
+                    if entry.isScreenshotTranslation {
+                        screenshotEditorPreview
+                        editorField(title: "截图总结", text: $draft.translatedText, minHeight: 88)
+                    } else {
+                        languageEditors
+                        editorField(title: "原文", text: $draft.sourceText, minHeight: 88)
+                        editorField(title: "译文", text: $draft.translatedText, minHeight: 88)
+                    }
                     editorField(
                         title: "笔记",
                         text: $draft.note,
                         minHeight: 100,
                         prompt: "添加用法、语境或记忆提示…"
                     )
-                    exampleEditors
+                    if !entry.isScreenshotTranslation {
+                        exampleEditors
+                    }
                     readOnlyMetadata
                 }
                 .padding(.horizontal, 28)
@@ -433,6 +501,28 @@ private struct DictionaryEntryEditorView: View {
                         Text(language.displayName).tag(language)
                     }
                 }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var screenshotEditorPreview: some View {
+        if let imageData = draft.sourceImageData,
+           let image = NSImage(data: imageData) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("截图")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity, maxHeight: 220)
+                    .clipShape(.rect(cornerRadius: 14))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(.primary.opacity(0.1), lineWidth: 1)
+                    }
             }
         }
     }

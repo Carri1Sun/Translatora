@@ -8,6 +8,28 @@ final class LanguageModelProviderRouter: LanguageModelCompleting {
         self.configurationStore = configurationStore
     }
 
+    var supportsImageInput: Bool {
+        switch configurationStore.selectedLanguageProvider {
+        case .deepSeek:
+            configurationStore.deepSeekConfiguration.model.supportsImageInput
+        case .miniMax:
+            configurationStore.miniMaxConfiguration.model.supportsImageInput
+        case .qwen:
+            configurationStore.qwenConfiguration.model.supportsImageInput
+        }
+    }
+
+    var currentModelDisplayName: String {
+        switch configurationStore.selectedLanguageProvider {
+        case .deepSeek:
+            configurationStore.deepSeekConfiguration.model.displayName
+        case .miniMax:
+            configurationStore.miniMaxConfiguration.model.displayName
+        case .qwen:
+            configurationStore.qwenConfiguration.model.displayName
+        }
+    }
+
     func complete(_ request: LLMRequest) async throws -> LLMResponse {
         try await currentProvider().complete(request)
     }

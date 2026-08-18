@@ -43,6 +43,37 @@ struct DictionaryStoreTests {
     }
 
     @Test
+    func persistsScreenshotTranslationData() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "TranslatoraScreenshotStoreTests-\(UUID().uuidString)")
+        let fileURL = directory.appending(path: "dictionary.json")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let imageData = Data([0x89, 0x50, 0x4e, 0x47])
+        let store = DictionaryStore(fileURL: fileURL)
+
+        _ = try store.add(
+            sourceText: "截图翻译",
+            translatedText: "一页介绍新功能的幻灯片。",
+            sourceLanguage: .english,
+            targetLanguage: .simplifiedChinese,
+            examples: [],
+            sourceImageData: imageData,
+            screenshotElements: [
+                ScreenshotTranslationElement(
+                    sourceText: "New features",
+                    translatedText: "新功能",
+                    context: "幻灯片标题"
+                )
+            ]
+        )
+
+        let reloadedEntry = try #require(DictionaryStore(fileURL: fileURL).entries.first)
+        #expect(reloadedEntry.isScreenshotTranslation)
+        #expect(reloadedEntry.sourceImageData == imageData)
+        #expect(reloadedEntry.screenshotElements.first?.translatedText == "新功能")
+    }
+
+    @Test
     func exportsAndImportsVersionedArchive() throws {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: "TranslatoraTests-\(UUID().uuidString)", directoryHint: .isDirectory)

@@ -34,6 +34,8 @@ enum MiniMaxModel: String, CaseIterable, Codable, Identifiable, Sendable {
             "面向编码与 Agent 工作流的基础版本"
         }
     }
+
+    var supportsImageInput: Bool { false }
 }
 
 enum MiniMaxTTSVoice: String, CaseIterable, Codable, Identifiable, Sendable {

@@ -6,6 +6,7 @@ struct GeneralSettingsView: View {
     @ObservedObject var shortcutStore: ShortcutStore
     let shortcutErrorMessage: String?
     let updateTranslationShortcut: (GlobalShortcut?) -> Bool
+    let updateScreenshotShortcut: (GlobalShortcut?) -> Bool
     let updateSaveShortcut: (GlobalShortcut?) -> Bool
     let selectedTextReader: SelectedTextReader
     let pronunciationCache: SpeechAudioCache
@@ -47,6 +48,13 @@ struct GeneralSettingsView: View {
                     shortcut: shortcutStore.translationShortcut,
                     onChange: applyTranslationShortcut,
                     onDelete: { applyTranslationShortcut(nil) }
+                )
+
+                shortcutRow(
+                    title: "截图翻译",
+                    shortcut: shortcutStore.screenshotShortcut,
+                    onChange: applyScreenshotShortcut,
+                    onDelete: { applyScreenshotShortcut(nil) }
                 )
 
                 shortcutRow(
@@ -219,6 +227,11 @@ struct GeneralSettingsView: View {
         _ = updateSaveShortcut(shortcut)
     }
 
+    private func applyScreenshotShortcut(_ shortcut: GlobalShortcut?) {
+        shortcutValidationError = nil
+        _ = updateScreenshotShortcut(shortcut)
+    }
+
     private var formattedCacheSize: String {
         ByteCountFormatter.string(
             fromByteCount: cacheSizeInBytes,
@@ -258,6 +271,7 @@ struct GeneralSettingsView: View {
         shortcutStore: ShortcutStore(),
         shortcutErrorMessage: nil,
         updateTranslationShortcut: { _ in true },
+        updateScreenshotShortcut: { _ in true },
         updateSaveShortcut: { _ in true },
         selectedTextReader: SelectedTextReader(),
         pronunciationCache: SpeechAudioCache()

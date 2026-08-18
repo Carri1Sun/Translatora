@@ -23,6 +23,13 @@ enum QwenModel: String, CaseIterable, Codable, Identifiable, Sendable {
             "响应更快、额度消耗更低，适合日常翻译"
         }
     }
+
+    var supportsImageInput: Bool {
+        switch self {
+        case .v38Max, .v36Flash:
+            true
+        }
+    }
 }
 
 enum QwenTokenPlanRegion: String, CaseIterable, Codable, Identifiable, Sendable {
