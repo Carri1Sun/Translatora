@@ -44,14 +44,7 @@ struct RenderingSmokeTests {
             sourceLanguage: .english,
             targetLanguage: .simplifiedChinese,
             examples: [],
-            sourceImageData: try makeScreenshotData(),
-            screenshotElements: [
-                ScreenshotTranslationElement(
-                    sourceText: "Understand every screen",
-                    translatedText: "理解每一处屏幕内容",
-                    context: "幻灯片主标题"
-                )
-            ]
+            sourceImageData: try makeScreenshotData()
         )
 
         let view = DictionaryHomeView(
@@ -283,9 +276,9 @@ struct RenderingSmokeTests {
             onSaved: { _ in }
         )
         .preferredColorScheme(.light)
-        .frame(width: 640, height: 720)
+        .frame(width: 640, height: 620)
 
-        let pngData = try render(view, size: NSSize(width: 640, height: 720))
+        let pngData = try render(view, size: NSSize(width: 640, height: 620))
         #expect(pngData.count > 10_000)
         try pngData.write(
             to: URL(filePath: "/tmp/translatora-screenshot-panel-render.png"),
@@ -388,9 +381,7 @@ private struct ScreenshotRenderCompleter: LanguageModelCompleting {
 
     func complete(_ request: LLMRequest) async throws -> LLMResponse {
         LLMResponse(
-            content: """
-            {"summary":"这是一页介绍截图理解、翻译和收藏流程的产品幻灯片。","elements":[{"sourceText":"Understand every screen","translatedText":"理解每一处屏幕内容","context":"画面中部的主标题"},{"sourceText":"Capture · Translate · Remember","translatedText":"截图 · 翻译 · 记忆","context":"主标题下方的功能流程说明"}]}
-            """,
+            content: "这是一页介绍截图理解、翻译和收藏流程的产品幻灯片，主标题“Understand every screen”表达了理解每一处屏幕内容的能力，并用“Capture · Translate · Remember”概括截图、翻译与收藏的完整流程。",
             model: "screenshot-render-stub"
         )
     }

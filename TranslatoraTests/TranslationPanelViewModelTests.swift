@@ -71,12 +71,11 @@ struct TranslationPanelViewModelTests {
         }
 
         #expect(viewModel.result?.translation == "一张问候语截图。")
-        #expect(viewModel.result?.screenshotTranslation?.elements.count == 1)
 
         let savedEntry = try #require(viewModel.saveResult())
         #expect(savedEntry.sourceImageData == imageData)
         #expect(savedEntry.translatedText == "一张问候语截图。")
-        #expect(savedEntry.screenshotElements.first?.sourceText == "Hello")
+        #expect(savedEntry.screenshotElements.isEmpty)
         #expect(DictionaryStore(fileURL: dictionaryURL).entries.first?.sourceImageData == imageData)
     }
 }
@@ -97,9 +96,7 @@ private struct ScreenshotPanelCompleter: LanguageModelCompleting {
 
     func complete(_ request: LLMRequest) async throws -> LLMResponse {
         LLMResponse(
-            content: """
-            {"summary":"一张问候语截图。","elements":[{"sourceText":"Hello","translatedText":"你好","context":"画面中央的问候语"}]}
-            """,
+            content: "一张问候语截图。",
             model: "screenshot-panel-stub"
         )
     }

@@ -121,8 +121,7 @@ final class TranslationPanelViewModel: ObservableObject {
                 sourceLanguage: sourceLanguage,
                 targetLanguage: targetLanguage,
                 examples: result.examples,
-                sourceImageData: screenshotImageData,
-                screenshotElements: result.screenshotTranslation?.elements ?? []
+                sourceImageData: screenshotImageData
             )
             isSaved = true
             saveErrorMessage = nil

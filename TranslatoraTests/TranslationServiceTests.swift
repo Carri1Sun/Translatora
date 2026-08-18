@@ -45,12 +45,12 @@ struct TranslationServiceTests {
     }
 
     @Test
-    func translatesScreenshotIntoOrderedElementsAndSummary() async throws {
+    func translatesScreenshotIntoSingleExplanationParagraph() async throws {
         let completer = StubCompleter(
             content: """
-            ```json
-            {"summary":"这是一页产品发布幻灯片。","elements":[{"sourceText":"Launch Day","translatedText":"发布日","context":"页面顶部的主标题"},{"sourceText":"Ship with confidence","translatedText":"自信地发布产品","context":"标题下方的副标题"}]}
-            ```
+            这是一页产品发布幻灯片，主标题“Launch Day”表示“发布日”。
+
+            副标题强调要有信心地发布产品，整体用于传达产品即将上线的信息。
             """,
             supportsImageInput: true
         )
@@ -61,14 +61,17 @@ struct TranslationServiceTests {
             to: .simplifiedChinese
         )
 
-        #expect(result.translation == "这是一页产品发布幻灯片。")
-        #expect(result.screenshotTranslation?.elements.count == 2)
-        #expect(result.screenshotTranslation?.elements.first?.sourceText == "Launch Day")
-        #expect(result.screenshotTranslation?.elements.first?.translatedText == "发布日")
+        #expect(
+            result.translation
+                == "这是一页产品发布幻灯片，主标题“Launch Day”表示“发布日”。 副标题强调要有信心地发布产品，整体用于传达产品即将上线的信息。"
+        )
+        #expect(result.examples.isEmpty)
         let request = try #require(completer.requests.first)
         #expect(request.messages.last?.imageDataURL?.hasPrefix("data:image/png;base64,") == true)
+        #expect(request.messages.last?.content.contains("one cohesive paragraph") == true)
         #expect(request.messages.first?.content.contains("Simplified Chinese") == true)
-        #expect(request.maxTokens == 4_000)
+        #expect(request.messages.first?.content.contains("Do not enumerate") == true)
+        #expect(request.maxTokens == 1_600)
     }
 
     @Test

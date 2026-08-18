@@ -49,12 +49,12 @@ final class TranslationService {
                 ),
                 LLMMessage(
                     role: .user,
-                    content: "Analyze every meaningful text element in this screenshot and translate it according to the instructions.",
+                    content: "Explain and translate this screenshot as one cohesive paragraph according to the instructions.",
                     imageDataURL: imageDataURL
                 )
             ],
             temperature: 0.1,
-            maxTokens: 4_000
+            maxTokens: 1_600
         )
 
         let response = try await modelProvider.complete(request)
@@ -76,20 +76,13 @@ final class TranslationService {
 
     private func screenshotSystemPrompt(targetLanguage: TranslationLanguage) -> String {
         """
-        You are a precise screenshot understanding and translation assistant. Analyze the attached screenshot and write all output in \(targetLanguage.promptName), except that sourceText must preserve the visible original text exactly.
+        You are a screenshot understanding and translation assistant. Analyze the attached screenshot and answer in \(targetLanguage.promptName).
 
-        Work in natural visual reading order, generally top-to-bottom and left-to-right. Include every meaningful visible text element: titles, headings, body text, bullets, table cells, chart labels, buttons, menus, captions, annotations, and status text. Keep separate elements separate when they serve different roles. Ignore purely decorative shapes and do not invent text that is unreadable.
+        Write exactly one cohesive paragraph, usually 3-6 concise sentences. Explain what the screenshot is, its main purpose, and its key message. Naturally incorporate the meaning and translation of the important visible text into that explanation. Quote a short original phrase only when it helps the reader connect the translation to the screenshot.
 
-        For each element:
-        - sourceText: copy the visible text exactly, preserving important punctuation and line breaks.
-        - translatedText: translate naturally into \(targetLanguage.promptName). If it is already in \(targetLanguage.promptName), briefly restate its meaning instead of repeating it mechanically.
-        - context: briefly explain where the element appears and what it does or represents, in \(targetLanguage.promptName).
+        Do not enumerate or explain text elements one by one. Do not produce headings, lists, bullets, numbering, tables, JSON, XML, Markdown, or code fences. Do not exhaustively transcribe minor labels, repeated text, or interface chrome. Mention layout or location only when it is necessary to understand the content. If text is already in \(targetLanguage.promptName), explain its meaning naturally instead of mechanically repeating it. Never invent unreadable text.
 
-        The summary must be a concise 1-3 sentence explanation of the screenshot's overall purpose and main message in \(targetLanguage.promptName).
-
-        Return only one valid JSON object with this exact shape:
-        {"summary":"concise overall summary","elements":[{"sourceText":"visible original text","translatedText":"translation","context":"location and role"}]}
-        Do not use Markdown fences. If no readable text exists, return an empty elements array and explain the visual content briefly in summary.
+        If the screenshot contains no readable text, describe its visual content and likely purpose in the same single-paragraph format. Return plain text only.
         """
     }
 
@@ -110,34 +103,13 @@ final class TranslationService {
     }
 
     private func parseScreenshot(_ content: String) -> TranslationResult {
-        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let data = jsonData(from: trimmed),
-              let payload = try? JSONDecoder().decode(ScreenshotTranslationPayload.self, from: data) else {
-            return TranslationResult(
-                translation: trimmed,
-                examples: [],
-                screenshotTranslation: ScreenshotTranslation(summary: trimmed, elements: [])
-            )
-        }
-
-        let summary = payload.summary.trimmingCharacters(in: .whitespacesAndNewlines)
-        let elements = payload.elements.compactMap { element -> ScreenshotTranslationElement? in
-            let sourceText = element.sourceText.trimmingCharacters(in: .whitespacesAndNewlines)
-            let translatedText = element.translatedText.trimmingCharacters(
-                in: .whitespacesAndNewlines
-            )
-            guard !sourceText.isEmpty || !translatedText.isEmpty else { return nil }
-            return ScreenshotTranslationElement(
-                sourceText: sourceText,
-                translatedText: translatedText,
-                context: element.context.trimmingCharacters(in: .whitespacesAndNewlines)
-            )
-        }
-        let screenshotTranslation = ScreenshotTranslation(summary: summary, elements: elements)
+        let explanation = content
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .split(whereSeparator: \Character.isWhitespace)
+            .joined(separator: " ")
         return TranslationResult(
-            translation: summary,
-            examples: [],
-            screenshotTranslation: screenshotTranslation
+            translation: explanation,
+            examples: []
         )
     }
 
@@ -158,19 +130,6 @@ final class TranslationService {
         return try? JSONDecoder().decode(TranslationPayload.self, from: data)
     }
 
-    private func jsonData(from content: String) -> Data? {
-        if let data = content.data(using: .utf8),
-           (try? JSONSerialization.jsonObject(with: data)) != nil {
-            return data
-        }
-
-        guard let openingBrace = content.firstIndex(of: "{"),
-              let closingBrace = content.lastIndex(of: "}"),
-              openingBrace <= closingBrace else {
-            return nil
-        }
-        return String(content[openingBrace...closingBrace]).data(using: .utf8)
-    }
 }
 
 private struct TranslationPayload: Decodable {
@@ -191,27 +150,5 @@ private struct TranslationPayload: Decodable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         translation = try container.decode(String.self, forKey: .translation)
         examples = try container.decodeIfPresent([Example].self, forKey: .examples) ?? []
-    }
-}
-
-private struct ScreenshotTranslationPayload: Decodable {
-    struct Element: Decodable {
-        let sourceText: String
-        let translatedText: String
-        let context: String
-    }
-
-    let summary: String
-    let elements: [Element]
-
-    private enum CodingKeys: String, CodingKey {
-        case summary
-        case elements
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        summary = try container.decode(String.self, forKey: .summary)
-        elements = try container.decodeIfPresent([Element].self, forKey: .elements) ?? []
     }
 }

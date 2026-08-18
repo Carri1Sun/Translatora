@@ -248,7 +248,7 @@ final class TranslationPanelController: NSObject, NSWindowDelegate {
             preferredHeight = viewModel.isScreenshotInput ? 610 : 430
         case let .result(result):
             if viewModel.isScreenshotInput {
-                preferredHeight = 720
+                preferredHeight = 620
             } else {
                 preferredHeight = result.examples.isEmpty ? 500 : 650
             }

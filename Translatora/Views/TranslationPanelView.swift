@@ -251,7 +251,7 @@ struct TranslationPanelView: View {
                 Text("正在理解并翻译")
                     .font(.subheadline.weight(.medium))
                 Text(viewModel.isScreenshotInput
-                     ? "模型正在按画面顺序识别、理解并翻译文字…"
+                     ? "模型正在理解画面并生成一段说明与翻译…"
                      : "模型正在组织自然的表达与例句…")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -272,7 +272,7 @@ struct TranslationPanelView: View {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        Text(viewModel.isScreenshotInput ? "截图总结" : "翻译结果")
+                        Text(viewModel.isScreenshotInput ? "截图说明" : "翻译结果")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(AppTheme.accentDeep)
 
@@ -293,14 +293,6 @@ struct TranslationPanelView: View {
                         ))
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                if let screenshotTranslation = result.screenshotTranslation,
-                   !screenshotTranslation.elements.isEmpty {
-                    Divider()
-                        .opacity(0.55)
-
-                    screenshotElementsView(screenshotTranslation.elements)
                 }
 
                 if !viewModel.isScreenshotInput, !result.examples.isEmpty {
@@ -359,49 +351,6 @@ struct TranslationPanelView: View {
         }
     }
 
-    private func screenshotElementsView(
-        _ elements: [ScreenshotTranslationElement]
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("文字元素 · \(elements.count)", systemImage: "text.viewfinder")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(mutedColor)
-
-            ForEach(Array(elements.enumerated()), id: \.element.id) { index, element in
-                VStack(alignment: .leading, spacing: 7) {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text("\(index + 1)")
-                            .font(.caption2.monospacedDigit().weight(.bold))
-                            .foregroundStyle(AppTheme.accentDeep)
-                            .frame(width: 20, height: 20)
-                            .background(AppTheme.accent.opacity(0.16), in: .circle)
-
-                        Text(element.context)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Text(element.sourceText)
-                        .font(.subheadline.weight(.medium))
-                        .textSelection(.enabled)
-
-                    Label {
-                        Text(element.translatedText)
-                            .textSelection(.enabled)
-                    } icon: {
-                        Image(systemName: "arrow.turn.down.right")
-                            .foregroundStyle(AppTheme.accentDeep)
-                    }
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                }
-                .padding(13)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(.primary.opacity(0.04), in: .rect(cornerRadius: 13))
-            }
-        }
-    }
-
     private func failureView(_ message: String) -> some View {
         HStack(spacing: 12) {
             Image(systemName: "exclamationmark.triangle.fill")
@@ -453,7 +402,7 @@ struct TranslationPanelView: View {
 
     private var idleDescription: String {
         if viewModel.isScreenshotInput {
-            return "截图会自动识别文字并翻译为\(viewModel.targetLanguage.displayName)"
+            return "截图会被理解并用\(viewModel.targetLanguage.displayName)生成一段说明"
         }
         if let shortcut = shortcutStore.translationShortcut {
             return "选中文本后按 \(shortcut.displayName)，可直接开始翻译"

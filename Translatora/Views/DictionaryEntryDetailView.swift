@@ -62,9 +62,7 @@ struct DictionaryEntryDetailView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     heroSection
                     noteSection
-                    if entry.isScreenshotTranslation {
-                        screenshotElementsSection
-                    } else {
+                    if !entry.isScreenshotTranslation {
                         examplesSection
                     }
                     metadataSection
@@ -212,43 +210,6 @@ struct DictionaryEntryDetailView: View {
                                 .font(.body.weight(.medium))
                                 .textSelection(.enabled)
                             Text(example.translation)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .textSelection(.enabled)
-                        }
-                        .padding(14)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(.primary.opacity(0.04), in: .rect(cornerRadius: 14))
-                    }
-                }
-            }
-        }
-    }
-
-    private var screenshotElementsSection: some View {
-        detailSection(title: "文字元素", systemImage: "text.viewfinder") {
-            if entry.screenshotElements.isEmpty {
-                Text("未保存单独的文字元素")
-                    .foregroundStyle(.tertiary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            } else {
-                VStack(spacing: 12) {
-                    ForEach(Array(entry.screenshotElements.enumerated()), id: \.element.id) {
-                        index,
-                        element in
-                        VStack(alignment: .leading, spacing: 7) {
-                            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                                Text("\(index + 1)")
-                                    .font(.caption2.monospacedDigit().weight(.bold))
-                                    .foregroundStyle(AppTheme.accentDeep)
-                                Text(element.context)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Text(element.sourceText)
-                                .font(.body.weight(.medium))
-                                .textSelection(.enabled)
-                            Text(element.translatedText)
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                                 .textSelection(.enabled)
@@ -412,7 +373,7 @@ private struct DictionaryEntryEditorView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     if entry.isScreenshotTranslation {
                         screenshotEditorPreview
-                        editorField(title: "截图总结", text: $draft.translatedText, minHeight: 88)
+                        editorField(title: "截图说明", text: $draft.translatedText, minHeight: 88)
                     } else {
                         languageEditors
                         editorField(title: "原文", text: $draft.sourceText, minHeight: 88)

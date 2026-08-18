@@ -78,24 +78,16 @@ struct ScreenshotTranslationElement: Codable, Equatable, Identifiable, Sendable 
     }
 }
 
-struct ScreenshotTranslation: Equatable, Sendable {
-    var summary: String
-    var elements: [ScreenshotTranslationElement]
-}
-
 struct TranslationResult: Equatable, Sendable {
     var translation: String
     var examples: [TranslationExample]
-    var screenshotTranslation: ScreenshotTranslation?
 
     init(
         translation: String,
-        examples: [TranslationExample],
-        screenshotTranslation: ScreenshotTranslation? = nil
+        examples: [TranslationExample]
     ) {
         self.translation = translation
         self.examples = examples
-        self.screenshotTranslation = screenshotTranslation
     }
 }
 
